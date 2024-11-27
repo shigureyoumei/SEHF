@@ -112,7 +112,7 @@ if __name__=="__main__":
             y_nd = np.array(y).astype(np.uint16)
             p_nd = np.array(p).astype(np.uint8)
 
-            img = render(x, y, p, H, W)
+            img = render(x_nd, y_nd, p_nd, H, W)
             img_name = str(img_idx).zfill(6)
             cv2.imwrite(os.path.join(image_folder, f"{img_name}.png"), img)
             img_idx += 1
