@@ -45,7 +45,7 @@ def create_videos_from_images(root, fps):
     def is_image_file(filename):
         return filename.lower().endswith(('.png', '.jpg', '.jpeg'))
 
-    def create_video_from_images(image_folder, fps):
+    def create_video_from_images(image_folder, fps, video_save_path):
         images = [img for img in os.listdir(image_folder) if is_image_file(img)]
         images.sort()  # Ensure the images are in the correct order
 
@@ -55,17 +55,19 @@ def create_videos_from_images(root, fps):
         frame = cv2.imread(os.path.join(image_folder, images[0]))
         height, width, layers = frame.shape
 
-        video_path = os.path.join(image_folder, 'output_video.avi')
-        video = cv2.VideoWriter(video_path, cv2.VideoWriter_fourcc(*'DIVX'), fps, (width, height))
+        video = cv2.VideoWriter(video_save_path, cv2.VideoWriter_fourcc(*'DIVX'), fps, (width, height))
 
         for image in images:
             video.write(cv2.imread(os.path.join(image_folder, image)))
 
         video.release()
 
+        print(f"Video saved at {video_save_path}")
+
+    video_save_path = os.path.dirname(root) + f"/{fps}fps_videos.avi"
     for subdir, dirs, files in tqdm(os.walk(root), desc="Processing folders"):
         if all(is_image_file(file) for file in files):
-            create_video_from_images(subdir, fps)
+            create_video_from_images(subdir, fps, video_save_path)
 
 #denoise a set of events
 def event_denoising(t, x, y, p, H, W):   
@@ -85,20 +87,20 @@ def event_denoising(t, x, y, p, H, W):
 
        
     for idx, _ in tqdm(enumerate(range(len(t))), desc="Denoising events", total=len(t)):
-        if t[idx] - t[idx_start] > 10000 or idx == len(t) - 1:    #处理当前100ms内的events/最后一部分events
-            for y in range(H):
-                for x in range(W):
-                    if wether_checked[y][x]:   #如果该坐标已经被检查过
+        if t[idx] - t[idx_start] > 5000 or idx == len(t) - 1:    #处理当前100ms内的events/最后一部分events
+            for y_c in range(H):
+                for x_c in range(W):
+                    if wether_checked[y_c][x_c]:   #如果该坐标已经被检查过
                         continue
                     save = False
 
                     for dx in [-1, 0, 1]:  # x方向的偏移
                         for dy in [-1, 0, 1]:  # y方向的偏移
-                            nx, ny = x + dx, y + dy
+                            nx, ny = x_c + dx, y_c + dy
                             # 确保相邻坐标在范围内
                             if  0 <= ny < H and 0 <= nx < W:
                                 # 进行值更改的条件（可以根据需求修改）
-                                if buffer_ahead[ny][nx] or (len(buffer[ny][nx]) > 0 and (ny != y and nx != x)):  #如果相邻坐标未被检查过且有events
+                                if (ny != y_c and nx != x_c) and (buffer_ahead[ny][nx] or len(buffer[ny][nx])>0):  #如果相邻坐标未被检查过且有events
                                     if not save:
                                         save = True
                                     if not wether_checked[ny][nx]:
@@ -110,21 +112,21 @@ def event_denoising(t, x, y, p, H, W):
                                         
                                         wether_checked[ny][nx] = True
                     if save:
-                        for idx_ in buffer[y][x]:
+                        for idx_ in buffer[y_c][x_c]:
                             t_.append(t[idx])
-                            x_.append(x)
-                            y_.append(y)
+                            x_.append(x_c)
+                            y_.append(y_c)
                             p_.append(p[idx_])
-                        wether_checked[y][x] = True
+                        wether_checked[y_c][x_c] = True
             buffer_ahead = buffer_for_next
             buffer_for_next = all_False
             idx_start = idx
             continue 
 
         _x, _y = x[idx], y[idx]
-        if t[idx] - t[idx_start] > 8000 and t[idx] - t[idx_start] <= 10000:   #将前50ms的events放入buffer_ahead
-            if not buffer_ahead[_y][_x]:
-                buffer_ahead[_y][_x] = True
+        if t[idx] - t[idx_start] > 3000 and t[idx] - t[idx_start] <= 5000:   #将前50ms的events放入buffer_ahead
+            if not buffer_for_next[_y][_x]:
+                buffer_for_next[_y][_x] = True
         buffer[_y][_x].append(idx)
         
         idx += 1
@@ -143,6 +145,9 @@ def event_denoising(t, x, y, p, H, W):
     x_ = list(x_)
     y_ = list(y_)
     p_ = list(p_)
+
+    del buffer, buffer_ahead, buffer_for_next, wether_checked
+
     return t_, x_, y_, p_ 
 
 #---check if adjacent events exist

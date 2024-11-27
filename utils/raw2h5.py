@@ -96,7 +96,7 @@ def read_file_prophesee(path, slice_time, dt, n, s_img, s_npy, s_h5):
 
 
 if __name__ == '__main__':
-    file_path = "/mnt/e/PROJECT/record/ets/rolling_chair_5ms/chair.raw"
+    file_path = "data/chair/chair.raw"
 
     if os.path.exists(file_path):
         print("File exists!")
@@ -104,7 +104,7 @@ if __name__ == '__main__':
         print("File not exists!")
 
     slice_by_time = True  # If TRUE, split events into fixed time intervals; otherwise, split events into fixed numbers of intervals.
-    delta_t = 5000  # Time interval for each segment of events(us). (slice_by_time = True)
+    delta_t = 10000  # Time interval for each segment of events(us). (slice_by_time = True)
     n_events = 1000000  # Number of events per segment. (slice_by_time = False)
     save_img = True
     save_npy = False

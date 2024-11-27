@@ -18,8 +18,34 @@
                 // "--timeInterval","10000"
 
                 //--------readraw--------
-                "/mnt/e/DATASET/Eventdata"
+                // "/mnt/e/DATASET/Eventdata"
                 // "-h"
+                
+                //--------readdataset--------
+                // "data",
+                // "--save_video",
+                // "--fps","100"
+
+                //------------ets------------
+                // "--root","data/chair/chair_10.0ms/h5",
+                // "--w","640",
+                // "--h","480",
+                // "--end","13000000",
+                // "--frame",
+                // "--interval","10000",
+                // "--h5",
+
+                //----------create_video-----------
+                "--root","data/denoised_imgs",
+                "--fps","100"
+
+
+                //---------------denoise from h5----------------
+                // "--root","data/chair/chair_10.0ms/h5/trail_filter_result",
+                
+                //--------------create images from h5----------------
+                // "--root", "data/chair.raw_denoised_h5"
+
             ]
         }
     ]
