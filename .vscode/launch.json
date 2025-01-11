@@ -51,7 +51,7 @@
                 // "--root", "data/chair/chair_10.0ms/h5/trail_filter_result/denoised_h5"
 
                 //--------------register_folder----------------
-                "--folder", "data/ball",
+                "--folder", "data/yazi",
                 "--fps","5"
             ]
         }

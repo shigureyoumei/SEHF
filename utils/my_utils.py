@@ -56,7 +56,7 @@ def create_videos_from_images(root, fps):
     def create_video_from_images(image_folder, fps, video_save_path):
         images = [img for img in os.listdir(image_folder) if is_image_file(img)]
         #images.sort(key=lambda x: int(x.split('_')[1].split('.')[0]))  # Ensure the images are in the correct order
-        images.sort()
+        images.sort(key=lambda x:int(x.split('.')[0]))
         print(f"Creating video from {len(images)} images in {image_folder}")
         print('images after sorted:')
         print(images)
@@ -216,8 +216,10 @@ def align_imgs_and_create_videos(path, fps):
                     rgb_image = cv2.imread(file_path)
                     aligned_rgb_image = cv2.warpPerspective(rgb_image, matrix, (441, 282))
                     #rgb_correct = aligned_rgb_image[115:395, 96:536]
-                    output_rgb_image_path = os.path.join(rgb_aligned_folder, file)
+                    img_name = file.split('_')[1]
+                    output_rgb_image_path = os.path.join(rgb_aligned_folder, img_name)
                     cv2.imwrite(output_rgb_image_path, aligned_rgb_image)
+                
                 create_videos_from_images(rgb_aligned_folder, fps)
             elif dir_name == 'event':
                 subfolder_path = os.path.join(root, dir_name)
@@ -243,7 +245,7 @@ def create_rgb_event_video(folder, fps):
             rgb_files = [f for f in os.listdir(rgb_folder) if f.endswith(('.png', '.jpg', '.jpeg'))]
             event_files = [f for f in os.listdir(event_folder) if f.endswith(('.png', '.jpg', '.jpeg'))]
             assert len(rgb_files) == len(event_files)
-            rgb_files.sort()
+            rgb_files.sort(key=lambda x: int(x.split('.')[0]))
             event_files.sort()
             paired_folder = os.path.join(root, 'paired')
             if not os.path.exists(paired_folder):
