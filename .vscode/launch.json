@@ -36,15 +36,10 @@
                 // "--h5",
 
                 //----------create_video-----------
-<<<<<<< HEAD
-                "--root","data/chair/chair_10.0ms/h5/trail_filter_result/images_denoised",
-                "--fps","100"
-=======
+                // "--root","data/chair/chair_10.0ms/h5/trail_filter_result/images_denoised",
+                // "--fps","100"
                 // "--root","/mnt/e/Program/DATASETS/RGBdata/20241219",
                 // "--fps","20"
-                "--root","/mnt/e/Program/matching video/check",
-                "--fps","20"
->>>>>>> 07b8613 (20250104)
 
 
                 //---------------denoise from h5----------------
@@ -55,6 +50,9 @@
                 //--------------create images from h5----------------
                 // "--root", "data/chair/chair_10.0ms/h5/trail_filter_result/denoised_h5"
 
+                //--------------register_folder----------------
+                "--folder", "/mnt/e/Program/PROJECT/dataset/DATASETS/ball",
+                "--fps","12"
             ]
         }
     ]
