@@ -56,6 +56,7 @@ def create_videos_from_images(root, fps):
     def create_video_from_images(image_folder, fps, video_save_path):
         images = [img for img in os.listdir(image_folder) if is_image_file(img)]
         #images.sort(key=lambda x: int(x.split('_')[1].split('.')[0]))  # Ensure the images are in the correct order
+        images.sort()
         print(f"Creating video from {len(images)} images in {image_folder}")
         print('images after sorted:')
         print(images)
@@ -227,3 +228,35 @@ def align_imgs_and_create_videos(path, fps):
                     output_event_image_path = os.path.join(event_aligned_folder, file)
                     cv2.imwrite(output_event_image_path, event_correct)
                 create_videos_from_images(event_aligned_folder, fps)
+
+
+# create video of paired rgb and event images
+# example: create_rgb_event_video(folder, fps)
+def create_rgb_event_video(folder, fps):
+    for root, dirs, files in os.walk(folder):
+        if 'rgb_aligned' in dirs and 'event_aligned' in dirs:
+            rgb_folder = os.path.join(root, 'rgb_aligned')
+            event_folder = os.path.join(root, 'event_aligned')
+            rgb_files = [f for f in os.listdir(rgb_folder) if f.endswith(('.png', '.jpg', '.jpeg'))]
+            event_files = [f for f in os.listdir(event_folder) if f.endswith(('.png', '.jpg', '.jpeg'))]
+            assert len(rgb_files) == len(event_files)
+            rgb_files.sort()
+            event_files.sort()
+            paired_folder = os.path.join(root, 'paired')
+
+            for rgb_file, event_file in zip(rgb_files, event_files):
+                rgb_img = cv2.imread(os.path.join(rgb_folder, rgb_file))
+                event_img = cv2.imread(os.path.join(event_folder, event_file))
+                assert rgb_img.shape == event_img.shape
+                # 创建一个布尔掩码，标记 event_img 中不为 (255, 255, 255) 的像素
+                mask = np.any(event_img != [255, 255, 255], axis=-1)
+
+                # 使用掩码选择对应的像素值
+                paired_img = np.where(mask[..., None], event_img, rgb_img)
+
+                # 保存合并后的图像
+                cv2.imwrite(os.path.join(paired_folder, rgb_file), paired_img)
+                #paired_img = np.concatenate((rgb_img, event_img), axis=1)
+
+            create_videos_from_images(paired_folder, fps)
+            print(f"Videos created at {paired_folder}")
