@@ -55,7 +55,7 @@ def create_videos_from_images(root, fps):
 
     def create_video_from_images(image_folder, fps, video_save_path):
         images = [img for img in os.listdir(image_folder) if is_image_file(img)]
-        # images.sort(key=lambda x: int(x.split('_')[1].split('.')[0]))  # Ensure the images are in the correct order
+        #images.sort(key=lambda x: int(x.split('_')[1].split('.')[0]))  # Ensure the images are in the correct order
         print(f"Creating video from {len(images)} images in {image_folder}")
         print('images after sorted:')
         print(images)
@@ -74,7 +74,10 @@ def create_videos_from_images(root, fps):
 
         print(f"Video saved at {video_save_path}")
 
-    video_save_path = os.path.dirname(root) + f"/{fps}fps_videos.avi"
+    video_folder = root + "/video"
+    if not os.path.exists(video_folder):
+        os.makedirs(video_folder)
+    video_save_path = video_folder + f"/{fps}fps_videos.avi"
     for subdir, dirs, files in tqdm(os.walk(root), desc="Processing folders"):
         if all(is_image_file(file) for file in files):
             create_video_from_images(subdir, fps, video_save_path)

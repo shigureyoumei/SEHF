@@ -52,7 +52,7 @@
 
                 //--------------register_folder----------------
                 "--folder", "/mnt/e/Program/PROJECT/dataset/DATASETS/ball",
-                "--fps","12"
+                "--fps","5"
             ]
         }
     ]

@@ -10,4 +10,4 @@ if __name__ == '__main__':
     folder = args.folder
     fps = args.fps
 
-    align_imgs_and_create_videos(folder)
+    align_imgs_and_create_videos(folder, fps)
