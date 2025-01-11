@@ -11,4 +11,6 @@ if __name__ == '__main__':
     fps = args.fps
 
     align_imgs_and_create_videos(folder, fps)
+
+    print('Creating RGB event video...')
     create_rgb_event_video(folder, fps)

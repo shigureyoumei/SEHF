@@ -191,15 +191,18 @@ def align_images(path):
                 for file in os.listdir(subfolder_path):
                     file_path = os.path.join(subfolder_path, file)
                     event_image = cv2.imread(file_path)
-                    event_correct = event_image[115:396, 101:536]
+                    event_cut = event_image[115:396, 101:536] # 435, 280
+                    event_rect = np.float32([[0,0], [435, 0], [435, 281], [0, 281]])
+                    matrix = cv2.getPerspectiveTransform(event_points, event_rect)
+                    event_correct = cv2.warpPerspective(event_cut, matrix, (435, 281))
                     output_event_image_path = os.path.join(event_aligned_folder, file)
                     cv2.imwrite(output_event_image_path, event_correct)
 
 # align images from RGB and event cameras and create videos
 # example: align_images_and_create_videos(path, fps)
 def align_imgs_and_create_videos(path, fps):
-    rgb_points = np.float32([[10, 13], [1905, 15], [1914, 1198], [4, 1199]])
-    event_points = np.float32([[101, 115], [536, 120], [535, 396], [96, 390]])
+    rgb_points = np.float32([[11, 15], [1904, 16], [1913, 1196], [5, 1198]])
+    event_points = np.float32([[5, 0], [440, 5], [439, 281], [0, 275]])  #101,115  536,120  535,396  96,390
     matrix = cv2.getPerspectiveTransform(rgb_points, event_points)
     for root, dirs, files in os.walk(path):
         for dir_name in dirs:
@@ -211,10 +214,10 @@ def align_imgs_and_create_videos(path, fps):
                 for file in os.listdir(subfolder_path):
                     file_path = os.path.join(subfolder_path, file)
                     rgb_image = cv2.imread(file_path)
-                    aligned_rgb_image = cv2.warpPerspective(rgb_image, matrix, (640, 480))
-                    rgb_correct = aligned_rgb_image[115:396, 101:536]
+                    aligned_rgb_image = cv2.warpPerspective(rgb_image, matrix, (441, 282))
+                    #rgb_correct = aligned_rgb_image[115:395, 96:536]
                     output_rgb_image_path = os.path.join(rgb_aligned_folder, file)
-                    cv2.imwrite(output_rgb_image_path, rgb_correct)
+                    cv2.imwrite(output_rgb_image_path, aligned_rgb_image)
                 create_videos_from_images(rgb_aligned_folder, fps)
             elif dir_name == 'event':
                 subfolder_path = os.path.join(root, dir_name)
@@ -224,7 +227,7 @@ def align_imgs_and_create_videos(path, fps):
                 for file in os.listdir(subfolder_path):
                     file_path = os.path.join(subfolder_path, file)
                     event_image = cv2.imread(file_path)
-                    event_correct = event_image[115:396, 101:536]
+                    event_correct = event_image[115:397, 96:537]
                     output_event_image_path = os.path.join(event_aligned_folder, file)
                     cv2.imwrite(output_event_image_path, event_correct)
                 create_videos_from_images(event_aligned_folder, fps)
@@ -243,7 +246,9 @@ def create_rgb_event_video(folder, fps):
             rgb_files.sort()
             event_files.sort()
             paired_folder = os.path.join(root, 'paired')
-
+            if not os.path.exists(paired_folder):
+                os.makedirs(paired_folder)
+            img_id = 0
             for rgb_file, event_file in zip(rgb_files, event_files):
                 rgb_img = cv2.imread(os.path.join(rgb_folder, rgb_file))
                 event_img = cv2.imread(os.path.join(event_folder, event_file))
@@ -253,10 +258,13 @@ def create_rgb_event_video(folder, fps):
 
                 # 使用掩码选择对应的像素值
                 paired_img = np.where(mask[..., None], event_img, rgb_img)
-
+                img_name = str(img_id).zfill(6) + '.jpg'
+                img_id += 1
+                img_path = os.path.join(paired_folder, img_name)
                 # 保存合并后的图像
-                cv2.imwrite(os.path.join(paired_folder, rgb_file), paired_img)
+                cv2.imwrite(img_path, paired_img)
                 #paired_img = np.concatenate((rgb_img, event_img), axis=1)
+
 
             create_videos_from_images(paired_folder, fps)
             print(f"Videos created at {paired_folder}")
