@@ -216,8 +216,8 @@ def align_imgs_and_create_videos(path, fps):
                     file_path = os.path.join(subfolder_path, file)
                     rgb_image = cv2.imread(file_path)
                     aligned_rgb_image = cv2.warpPerspective(rgb_image, matrix, (441, 282))
-                    #rgb_correct = aligned_rgb_image[115:395, 96:536]
-                    img_name = file.split('_')[1]
+                    #img_name = file.split('_')[1]   #rgb files' names contain '_'
+                    img_name = file
                     output_rgb_image_path = os.path.join(rgb_aligned_folder, img_name)
                     cv2.imwrite(output_rgb_image_path, aligned_rgb_image)
                 
