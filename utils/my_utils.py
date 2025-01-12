@@ -201,7 +201,8 @@ def align_images(path):
 # align images from RGB and event cameras and create videos
 # example: align_images_and_create_videos(path, fps)
 def align_imgs_and_create_videos(path, fps):
-    rgb_points = np.float32([[11, 15], [1904, 16], [1913, 1196], [5, 1198]])
+    # rgb_points = np.float32([[11, 15], [1904, 16], [1913, 1196], [5, 1198]])  #version1
+    rgb_points = np.float32([[9, 3], [1905, 6], [1914, 1206], [3, 1208]])   #version2
     event_points = np.float32([[5, 0], [440, 5], [439, 281], [0, 275]])  #101,115  536,120  535,396  96,390
     matrix = cv2.getPerspectiveTransform(rgb_points, event_points)
     for root, dirs, files in os.walk(path):
