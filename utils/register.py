@@ -7,8 +7,9 @@ def align_images(rgb_image_path, event_image_path, output_rgb_image_path, output
     event_image = cv2.imread(event_image_path)
 
     # 定义 RGB 相机和事件相机的对应点
-    # rgb_points = np.float32([[11, 15], [1904, 16], [1913, 1196], [5, 1198]])
-    rgb_points = np.float32([[9, 3], [1905, 6], [1914, 1206], [3, 1208]])
+    # rgb_points = np.float32([[11, 15], [1904, 16], [1913, 1196], [5, 1198]])  #version1
+    # rgb_points = np.float32([[9, 3], [1905, 6], [1914, 1206], [3, 1208]])   #version2
+    rgb_points = np.float32([[8, 2], [1907, 4], [1917, 1208], [2, 1211]])   #version3
     event_points = np.float32([[5, 0], [440, 5], [439, 281], [0, 275]])  #101,115  536,120  535,396  96,390
 
     # 计算透视变换矩阵
@@ -35,6 +36,6 @@ rgb_image_path = '/mnt/e/projects/pair/pair/rgb.jpeg'
 # event_image_path = 'data/register/event/000001.png'
 event_image_path = '/mnt/e/projects/pair/pair/event.jpg'
 # rgb_image_path = 'data/register/rgb/02.jpeg'
-output_rgb_image_path = '/mnt/e/projects/pair/pair/registered_rgb_correct.jpeg'
-output_event_image_path = '/mnt/e/projects/pair/pair/event_correct.jpeg'
+output_rgb_image_path = '/mnt/e/projects/pair/pair/registered_rgb_correct2.jpeg'
+output_event_image_path = '/mnt/e/projects/pair/pair/event_correct2.jpeg'
 align_images(rgb_image_path, event_image_path, output_rgb_image_path, output_event_image_path)
