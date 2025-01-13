@@ -36,8 +36,11 @@
                 // "--h5",
 
                 //----------create_video-----------
-                // "--root","data/chair/chair_10.0ms/h5/trail_filter_result/images_denoised",
-                // "--fps","100"
+                // "--root","data/ball/rgb",
+                // "--fps","25"
+                "--root","data/ball/event",
+                "--fps","25"
+
                 // "--root","/mnt/e/Program/DATASETS/RGBdata/20241219",
                 // "--fps","20"
 
@@ -51,8 +54,8 @@
                 // "--root", "data/chair/chair_10.0ms/h5/trail_filter_result/denoised_h5"
 
                 //--------------register_folder----------------
-                "--folder", "data/ypeople",
-                "--fps","5"
+                // "--folder", "data/ball",
+                // "--fps","25"
             ]
         }
     ]

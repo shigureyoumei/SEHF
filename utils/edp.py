@@ -51,6 +51,10 @@ def create_videos_from_images(root, fps):
     def create_video_from_images(image_folder, fps, video_save_path):
         images = [img for img in os.listdir(image_folder) if is_image_file(img)]
         # images.sort(key=lambda x: int(x.split('_')[1].split('.')[0]))  # Ensure the images are in the correct order
+        if '_' in images[0]:
+            images.sort(key = lambda x: int(x.split('_')[1].split('.')[0]))
+        else:
+            images.sort(key = lambda x: int(x.split('.')[0]))
         print(f"Creating video from {len(images)} images in {image_folder}")
         print('images after sorted:')
         print(images)

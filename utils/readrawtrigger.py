@@ -45,7 +45,7 @@ if __name__ == '__main__':
 
     trigger_total = []
     dt = 10000 # 10ms
-    raw_path = '/mnt/e/Program/PROJECT/dataset/DATASETS/ypeople/event/people.raw'
+    raw_path = '/mnt/e/Program/PROJECT/dataset/DATASETS/ball2/raw/ball2.raw'
     record_raw = RawReader(raw_path)
     h, w = record_raw.get_size()
     mv_iterator = EventsIterator(input_path=raw_path, delta_t=dt, mode='delta_t')
