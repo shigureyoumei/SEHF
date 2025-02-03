@@ -26,6 +26,12 @@
                 // "--save_video",
                 // "--fps","100"
 
+                //---------readrawtrigger--------
+                "--folder_path", "/mnt/e/Program/PROJECT/dataset/DATASETS/try",
+                // "--mode1",
+                "--mode2", 
+                "--dt", "5000"
+
                 //------------ets------------
                 // "--root","data/chair/chair_10.0ms/h5",
                 // "--w","640",
@@ -38,11 +44,12 @@
                 //----------create_video-----------
                 // "--root","data/ball/rgb",
                 // "--fps","25"
-                "--root","data/ball/event",
-                "--fps","25"
-
-                // "--root","/mnt/e/Program/DATASETS/RGBdata/20241219",
-                // "--fps","20"
+                // "--root","data/ball/event",
+                // "--fps","25"
+                // "--root","/mnt/e/Program/PROJECT/dataset/DATASETS/registration1/rgb",
+                // "--fps","25",
+                // "--root","/mnt/e/Program/PROJECT/dataset/DATASETS/registration1/event/frames_trigger",
+                // "--fps","25"
 
 
                 //---------------denoise from h5----------------
@@ -54,7 +61,7 @@
                 // "--root", "data/chair/chair_10.0ms/h5/trail_filter_result/denoised_h5"
 
                 //--------------register_folder----------------
-                // "--folder", "data/ypeople",
+                // "--folder", "/mnt/e/Program/PROJECT/dataset/DATASETS/try",
                 // "--fps","25"
             ]
         }

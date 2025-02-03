@@ -68,7 +68,7 @@ def create_videos_from_images(root, fps):
 
         video = cv2.VideoWriter(video_save_path, cv2.VideoWriter_fourcc(*'DIVX'), fps, (width, height))
 
-        for image in images:
+        for image in tqdm(images, desc="Creating video", total=len(images)):
             video.write(cv2.imread(os.path.join(image_folder, image)))
 
         video.release()
@@ -79,7 +79,7 @@ def create_videos_from_images(root, fps):
     if not os.path.exists(video_folder):
         os.makedirs(video_folder)
     video_save_path = video_folder + f"/{fps}fps_videos.avi"
-    for subdir, dirs, files in tqdm(os.walk(root), desc="Processing folders"):
+    for subdir, dirs, files in os.walk(root):
         if all(is_image_file(file) for file in files):
             create_video_from_images(subdir, fps, video_save_path)
 
@@ -203,9 +203,9 @@ def align_images(path):
 def align_imgs_and_create_videos(path, fps):
     # rgb_points = np.float32([[11, 15], [1904, 16], [1913, 1196], [5, 1198]])  #version1
     # rgb_points = np.float32([[9, 3], [1905, 6], [1914, 1206], [3, 1208]])   #version2
-    rgb_points = np.float32([[8, 2], [1907, 4], [1917, 1208], [2, 1211]])   #version3
-    event_points = np.float32([[5, 0], [440, 5], [439, 281], [0, 275]])  #101,115  536,120  535,396  96,390
-    matrix = cv2.getPerspectiveTransform(rgb_points, event_points)
+    # rgb_points = np.float32([[8, 2], [1907, 4], [1917, 1208], [2, 1211]])   #version3
+    # event_points = np.float32([[5, 0], [440, 5], [439, 281], [0, 275]])  #101,115  536,120  535,396  96,390
+    # matrix = cv2.getPerspectiveTransform(rgb_points, event_points)
     for root, dirs, files in os.walk(path):
         for dir_name in dirs:
             if dir_name == 'rgb':
@@ -216,7 +216,8 @@ def align_imgs_and_create_videos(path, fps):
                 for file in os.listdir(subfolder_path):
                     file_path = os.path.join(subfolder_path, file)
                     rgb_image = cv2.imread(file_path)
-                    aligned_rgb_image = cv2.warpPerspective(rgb_image, matrix, (441, 282))
+                    # aligned_rgb_image = cv2.warpPerspective(rgb_image, matrix, (441, 282))
+                    aligned_rgb_image = cv2.resize(rgb_image, (442, 276))
                     #img_name = file.split('_')[1]   #rgb files' names contain '_'
                     img_name = file
                     output_rgb_image_path = os.path.join(rgb_aligned_folder, img_name)
@@ -231,7 +232,8 @@ def align_imgs_and_create_videos(path, fps):
                 for file in os.listdir(subfolder_path):
                     file_path = os.path.join(subfolder_path, file)
                     event_image = cv2.imread(file_path)
-                    event_correct = event_image[115:397, 96:537]
+                    # event_correct = event_image[102:378,99:541].copy()
+                    event_correct = event_image[116:392,102:544].copy()
                     output_event_image_path = os.path.join(event_aligned_folder, file)
                     cv2.imwrite(output_event_image_path, event_correct)
                 create_videos_from_images(event_aligned_folder, fps)

@@ -210,6 +210,8 @@ def render(x: np.ndarray, y: np.ndarray, pol: np.ndarray, H: int, W: int) -> np.
     img[mask == 0] = [255, 255, 255]
     img[mask == -1] = [255, 0, 0]
     img[mask == 1] = [0, 0, 255]
+    img = cv2.flip(img, 1)
+    
     return img
 
 
