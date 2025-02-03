@@ -146,6 +146,8 @@ if __name__ == '__main__':
     arg.add_argument('--mode1', action='store_true', help='save frames according to every trigger')
     arg.add_argument('--mode2', action='store_true', help='save frames between start and end trigger')
     arg.add_argument('--dt', type=int, default=10000, help='time interval')
+    arg.add_argument('--ets', action='store_true', help='event trail suppression process')
+    arg.add_argument('--saveh5', action='store_true', help='save triggerred events to h5 file')
 
     args = arg.parse_args()
     folder_path = args.folder_path
@@ -159,19 +161,19 @@ if __name__ == '__main__':
                 h, w = record_raw.get_size()
                 mv_iterator = EventsIterator(input_path=raw_path, delta_t=dt, mode='delta_t')
 
-                x = []
-                y = []
-                p = []
-                t = []
+                x_ = []
+                y_ = []
+                p_ = []
+                t_ = []
 
                 trigger_total = []
                 for evs in mv_iterator:
                     if evs.size != 0:
                         triggers = mv_iterator.reader.get_ext_trigger_events()
-                        x.extend(evs['x'].tolist())
-                        y.extend(evs['y'].tolist())
-                        p.extend(evs['p'].tolist())
-                        t.extend(evs['t'].tolist())
+                        x_.extend(evs['x'].tolist())
+                        y_.extend(evs['y'].tolist())
+                        p_.extend(evs['p'].tolist())
+                        t_.extend(evs['t'].tolist())
                         if len(triggers) > 0:
                             print("there are " + str(len(triggers)) + " external trigger events!)")
                             for trigger in triggers:
@@ -181,12 +183,23 @@ if __name__ == '__main__':
                     mv_iterator.reader.clear_ext_trigger_events()
                 print("-----------------------------------------------")
                 print("Total number of external trigger events: " + str(len(trigger_total)))
+
+
+
+                if args.ets:
+                    print('')
+                    print('**********************************************')
+                    print('Event Trail Suppression Process')
+                    print('**********************************************')
+
+
+
                 if args.mode1:
                     frame_path = os.path.join(os.path.dirname(raw_path), 'event')
-                    save_frame_every_trigger(frame_path, h, w, x, y, p, t, trigger_total)
+                    save_frame_every_trigger(frame_path, h, w, x_, y_, p_, t_, trigger_total)
                 if args.mode2:
                     frame_path = os.path.join(os.path.dirname(raw_path), 'event_frames_dt')
-                    save_frame_total_trigger(frame_path, h, w, x, y, p, t, trigger_total, dt)
+                    save_frame_total_trigger(frame_path, h, w, x_, y_, p_, t_, trigger_total, dt)
 
     # trigger_total = []
     # dt = 10000 # 10ms
