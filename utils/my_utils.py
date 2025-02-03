@@ -277,15 +277,15 @@ def create_rgb_event_video(folder, fps):
 
 
 # ETS process
-def ets_process(events, t0, s_w, s_h, threshold_t_on, threshold_t_off, soft_thr):
+def ets_process(t, x, y, p, s_w, s_h, threshold_t_on, threshold_t_off, soft_thr):
     # ----------------------------Grid the events according to coordinates, with each pixel containing a sequence of timestamp values.----------------------------
     # Create two empty lists with a shape of [H, W].
     ts_map = [[[] for _ in range(s_w)] for _ in range(s_h)]
     p_map = [[[] for _ in range(s_w)] for _ in range(s_h)]
 
     # Traverse the array events and append t(i) to the list at the corresponding position in X.
-    for ev in tqdm(events):
-        ts_, xs_, ys_, ps_ = ev[0], ev[1], ev[2], ev[3]
+    for t_, x_, y_, p_ in zip(t, x, y, p):
+        ts_, xs_, ys_, ps_ = t_, x_, y_, p_
         ts_map[ys_][xs_].append(ts_)
         p_map[ys_][xs_].append(ps_)
     ts_map = np.array(ts_map)
@@ -296,7 +296,7 @@ def ets_process(events, t0, s_w, s_h, threshold_t_on, threshold_t_off, soft_thr)
     p_map = np.concatenate([np.array(row) for row in p_map if len(row) > 0])
 
     # ----------------------------------------ETS processing----------------------------------------
-    ets_events = np.ones((len(events), 4)) * -1
+    ets_events = np.ones((len(t), 4)) * -1
     n_evs = 0
 
     for ii, t_array in tqdm(enumerate(ts_map)):
@@ -349,7 +349,7 @@ def ets_process(events, t0, s_w, s_h, threshold_t_on, threshold_t_off, soft_thr)
                 n_evs += 1
 
     ets_events = ets_events.reshape(-1, 4)
-    ets_events[:, 0] = ets_events[:, 0] + t0
+    ets_events[:, 0] = ets_events[:, 0]
     # Reorder the events processed by ETS based on their timestamps
     idex = np.lexsort([ets_events[:, 0]])
     ets_events = ets_events[idex, :]
@@ -357,4 +357,10 @@ def ets_process(events, t0, s_w, s_h, threshold_t_on, threshold_t_off, soft_thr)
     # Release memory
     del ts_map, p_map
 
-    return ets_events
+    # Return the processed events
+    t = ets_events[:, 0]
+    x = ets_events[:, 1]
+    y = ets_events[:, 2]
+    p = ets_events[:, 3]
+
+    return t, x, y, p

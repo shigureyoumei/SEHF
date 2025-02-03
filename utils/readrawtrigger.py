@@ -85,22 +85,6 @@ def save_frame_total_trigger(frame_path, h, w, x, y, p, t, trigger, dt):
     idx_2_start = idx_1_start
     idx_2_end = idx_2_start + 1
 
-    # while idx_2_end < len(t_temp):
-    #     while t[idx_2_end] - t[idx_2_start] < dt:
-    #         if idx_2_end == len(t_temp)-1:
-    #             break
-    #         idx_2_end += 1
-    #     x_temp = np.array(x[idx_2_start:idx_2_end], dtype='uint16')
-    #     y_temp = np.array(y[idx_2_start:idx_2_end], dtype='uint16')
-    #     p_temp = np.array(p[idx_2_start:idx_2_end], dtype='uint16')
-
-
-    #     img = render(x_temp, y_temp, p_temp, h, w)
-    #     frame_name = os.path.join(frame_path, str(frame_id).zfill(6) + '.png')
-    #     cv2.imwrite(frame_name, img)
-    #     frame_id += 1
-    #     idx_2_start = idx_2_end
-    #     idx_2_end += 1
 
 
     total_frames = (t_temp[-1] - t_temp[0]) // dt
@@ -179,7 +163,7 @@ if __name__ == '__main__':
                             for trigger in triggers:
                                 print(trigger)
                                 save = trigger.copy()
-                                trigger_total.append(save)
+                                trigger_total.append(save[1])
                     mv_iterator.reader.clear_ext_trigger_events()
                 print("-----------------------------------------------")
                 print("Total number of external trigger events: " + str(len(trigger_total)))
@@ -200,45 +184,3 @@ if __name__ == '__main__':
                 if args.mode2:
                     frame_path = os.path.join(os.path.dirname(raw_path), 'event_frames_dt')
                     save_frame_total_trigger(frame_path, h, w, x_, y_, p_, t_, trigger_total, dt)
-
-    # trigger_total = []
-    # dt = 10000 # 10ms
-    # raw_path = '/mnt/e/Program/PROJECT/dataset/DATASETS/ball2/raw/ball2.raw'
-    # record_raw = RawReader(raw_path)
-    # h, w = record_raw.get_size()
-    # mv_iterator = EventsIterator(input_path=raw_path, delta_t=dt, mode='delta_t')
-    # #mv_iterator1 = EventsIterator(input_path=raw_path, delta_t=dt, mode='delta_t')
-    # x_t = []
-    # y_t = []
-    # p_t = []
-    # t_t = []
-
-    # x = []
-    # y = []
-    # p = []
-    # t = []
-
-    # for evs in mv_iterator:
-    #     if evs.size != 0:
-    #         triggers = mv_iterator.reader.get_ext_trigger_events()
-    #         x_t.extend(evs['x'].tolist())
-    #         y_t.extend(evs['y'].tolist())
-    #         p_t.extend(evs['p'].tolist())
-    #         t_t.extend(evs['t'].tolist())
-    #         if len(triggers) > 0:
-    #             print("there are " + str(len(triggers)) + " external trigger events!)")
-    #             for trigger in triggers:
-    #                 print(trigger)
-    #                 save = trigger.copy()
-    #                 trigger_total.append(save)
-    #     mv_iterator.reader.clear_ext_trigger_events()
-
-    # print("-----------------------------------------------")
-    # print("Total number of external trigger events: " + str(len(trigger_total)))
-
-    # x = np.array(x, dtype='uint16')
-    # y = np.array(y, dtype='uint16')
-    # p = np.array(p, dtype='uint16')
-    # t = np.array(t, dtype='uint64')
-    # frame_save_folder = os.path.join(os.path.dirname(raw_path), 'frame')
-    # save_frame(frame_save_folder, h, w, x, y, p, t, trigger_total)
