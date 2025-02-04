@@ -27,10 +27,14 @@
                 // "--fps","100"
 
                 //---------readrawtrigger--------
-                "--folder_path", "/mnt/e/Program/PROJECT/dataset/DATASETS/try",
-                // "--mode1",
-                "--mode2", 
-                "--dt", "5000"
+                "--folder_path", "data/re",
+                "--mode1",
+                // "--mode2", 
+                // "--dt", "5000"
+                "--ets",
+                // "--saveh5",
+                "--video",
+                "--fps","25"
 
                 //------------ets------------
                 // "--root","data/chair/chair_10.0ms/h5",

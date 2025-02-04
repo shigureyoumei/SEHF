@@ -277,7 +277,7 @@ def create_rgb_event_video(folder, fps):
 
 
 # ETS process
-def ets_process(t, x, y, p, s_w, s_h, threshold_t_on, threshold_t_off, soft_thr):
+def ets(t, x, y, p, s_w, s_h, threshold_t_on, threshold_t_off, soft_thr):
     # ----------------------------Grid the events according to coordinates, with each pixel containing a sequence of timestamp values.----------------------------
     # Create two empty lists with a shape of [H, W].
     ts_map = [[[] for _ in range(s_w)] for _ in range(s_h)]
@@ -299,7 +299,7 @@ def ets_process(t, x, y, p, s_w, s_h, threshold_t_on, threshold_t_off, soft_thr)
     ets_events = np.ones((len(t), 4)) * -1
     n_evs = 0
 
-    for ii, t_array in tqdm(enumerate(ts_map)):
+    for ii, t_array in tqdm(enumerate(ts_map), desc="ETS processing", total=len(ts_map)):
         # Skip elements that are empty lists.
         if not t_array:
             continue
@@ -364,3 +364,17 @@ def ets_process(t, x, y, p, s_w, s_h, threshold_t_on, threshold_t_off, soft_thr)
     p = ets_events[:, 3]
 
     return t, x, y, p
+
+
+# save h5 files
+def save_h5(path, h, w, t, x, p, y):
+    with h5py.File(path, 'w') as f:
+        # 保存 h 和 w 为属性
+        f.attrs['height'] = h
+        f.attrs['width'] = w
+        
+        # 保存 t, x, y, p 为数据集
+        f.create_dataset('t', data=t)
+        f.create_dataset('x', data=x)
+        f.create_dataset('y', data=y)
+        f.create_dataset('p', data=p)

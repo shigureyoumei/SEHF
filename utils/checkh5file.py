@@ -14,5 +14,5 @@ def print_h5_contents(file_path):
         f.visititems(print_attrs)
 
 # 使用示例
-file_path = 'Event_Trail_Suppression/data/test_20.0ms/h5/test.h5'
+file_path = 'data/d203/d203.h5'
 print_h5_contents(file_path)

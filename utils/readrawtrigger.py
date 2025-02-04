@@ -6,6 +6,7 @@ import argparse
 from metavision_core.event_io.raw_reader import RawReader
 from metavision_core.event_io import EventsIterator
 import numpy as np
+from my_utils import *
 
 
 def save_frame_every_trigger(frame_path, h, w, x, y, p, t, trigger):
@@ -24,9 +25,9 @@ def save_frame_every_trigger(frame_path, h, w, x, y, p, t, trigger):
     idx_start = 0
     idx_end = 0
     while end < total:
-        while t[idx_start] < trigger[start][1]:
+        while t[idx_start] < trigger[start]:
             idx_start += 1
-        while t[idx_end+1] < trigger[end][1]:
+        while t[idx_end+1] < trigger[end]:
             idx_end += 1
         x_temp = np.array(x[idx_start:idx_end], dtype='uint16')
         y_temp = np.array(y[idx_start:idx_end], dtype='uint16')
@@ -132,6 +133,8 @@ if __name__ == '__main__':
     arg.add_argument('--dt', type=int, default=10000, help='time interval')
     arg.add_argument('--ets', action='store_true', help='event trail suppression process')
     arg.add_argument('--saveh5', action='store_true', help='save triggerred events to h5 file')
+    arg.add_argument('--video', action='store_true', help='create video from images')
+    arg.add_argument('--fps', type=int, default=25, help='frames per second')
 
     args = arg.parse_args()
     folder_path = args.folder_path
@@ -144,6 +147,8 @@ if __name__ == '__main__':
                 record_raw = RawReader(raw_path)
                 h, w = record_raw.get_size()
                 mv_iterator = EventsIterator(input_path=raw_path, delta_t=dt, mode='delta_t')
+
+                file_name = raw_path.split('.')[0]
 
                 x_ = []
                 y_ = []
@@ -169,18 +174,44 @@ if __name__ == '__main__':
                 print("Total number of external trigger events: " + str(len(trigger_total)))
 
 
+                # save events between first and last triggers
+                mask = np.where((t_ >= trigger_total[0]) & (t_ <= trigger_total[-1]))[0]
+                x_ = np.array(x_)[mask].tolist()
+                y_ = np.array(y_)[mask].tolist()
+                p_ = np.array(p_)[mask].tolist()
+                t_ = np.array(t_)[mask].tolist()
+
 
                 if args.ets:
+                    s_h = 480
+                    s_w = 640
+                    t_on = 1e6
+                    t_off = 1e6
+                    soft_t = 0
+
                     print('')
                     print('**********************************************')
                     print('Event Trail Suppression Process')
                     print('**********************************************')
+                    t_, x_, y_, p_ = ets(t_, x_, y_, p_, s_w, s_h, t_on, t_off, soft_t)
 
-
+                if args.saveh5:
+                    file_name = file_name+'.h5'
+                    save_h5(file_name, h, w, x_, y_, p_, t_)
 
                 if args.mode1:
                     frame_path = os.path.join(os.path.dirname(raw_path), 'event')
                     save_frame_every_trigger(frame_path, h, w, x_, y_, p_, t_, trigger_total)
+                    if args.video:
+                        print('------------------------------------')
+                        print("Creating video from images in the folder")
+                        print('------------------------------------')
+                        create_videos_from_images(frame_path, args.fps)
                 if args.mode2:
                     frame_path = os.path.join(os.path.dirname(raw_path), 'event_frames_dt')
                     save_frame_total_trigger(frame_path, h, w, x_, y_, p_, t_, trigger_total, dt)
+                    if args.video:
+                        print('------------------------------------')
+                        print("Creating video from images in the folder")
+                        print('------------------------------------')
+                        create_videos_from_images(frame_path, 1000000//dt)
