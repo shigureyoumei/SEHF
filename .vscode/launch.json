@@ -27,14 +27,15 @@
                 // "--fps","100"
 
                 //---------readrawtrigger--------
-                "--folder_path", "data/re",
+                "--folder_path", "/mnt/d/Storage/ball1",
+                "--ets",
                 "--mode1",
                 // "--mode2", 
                 // "--dt", "5000"
-                "--ets",
-                // "--saveh5",
-                "--video",
-                "--fps","25"
+                // "--video",
+                "--fps","25",
+                "--registration",
+                "--saveh5",
 
                 //------------ets------------
                 // "--root","data/chair/chair_10.0ms/h5",

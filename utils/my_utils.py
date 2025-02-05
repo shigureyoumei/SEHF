@@ -55,8 +55,8 @@ def create_videos_from_images(root, fps):
 
     def create_video_from_images(image_folder, fps, video_save_path):
         images = [img for img in os.listdir(image_folder) if is_image_file(img)]
-        #images.sort(key=lambda x: int(x.split('_')[1].split('.')[0]))  # Ensure the images are in the correct order
-        images.sort(key=lambda x:int(x.split('.')[0]))
+        images.sort(key=lambda x: int(x.split('_')[-1].split('.')[0]))  # Ensure the images are in the correct order
+        # images.sort(key=lambda x:int(x.split('.')[0]))
         print(f"Creating video from {len(images)} images in {image_folder}")
         print('images after sorted:')
         print(images)
@@ -224,9 +224,9 @@ def align_imgs_and_create_videos(path, fps):
                     cv2.imwrite(output_rgb_image_path, aligned_rgb_image)
                 
                 create_videos_from_images(rgb_aligned_folder, fps)
-            elif dir_name == 'event':
+            elif dir_name == 'event_frames_trigger':
                 subfolder_path = os.path.join(root, dir_name)
-                event_aligned_folder = os.path.join(root, 'event_aligned')
+                event_aligned_folder = os.path.join(os.path.dirname(root), 'event_aligned')
                 if not os.path.exists(event_aligned_folder):
                     os.makedirs(event_aligned_folder)
                 for file in os.listdir(subfolder_path):
@@ -249,7 +249,7 @@ def create_rgb_event_video(folder, fps):
             rgb_files = [f for f in os.listdir(rgb_folder) if f.endswith(('.png', '.jpg', '.jpeg'))]
             event_files = [f for f in os.listdir(event_folder) if f.endswith(('.png', '.jpg', '.jpeg'))]
             assert len(rgb_files) == len(event_files)
-            rgb_files.sort(key=lambda x: int(x.split('.')[0]))
+            rgb_files.sort(key=lambda x: int(x.split('_')[-1].split('.')[0]))
             event_files.sort()
             paired_folder = os.path.join(root, 'paired')
             if not os.path.exists(paired_folder):
@@ -367,14 +367,89 @@ def ets(t, x, y, p, s_w, s_h, threshold_t_on, threshold_t_off, soft_thr):
 
 
 # save h5 files
-def save_h5(path, h, w, t, x, p, y):
+def save_h5(root, path, eh, ew, t, x, p, y, ox, oy, op, ot, trigger):
+
     with h5py.File(path, 'w') as f:
         # 保存 h 和 w 为属性
-        f.attrs['height'] = h
-        f.attrs['width'] = w
+        f.attrs['event_height'] = eh
+        f.attrs['event_width'] = ew
+        f.attrs['rgb_height'] = 1216
+        f.attrs['rgb_width'] = 1936
+        f.attrs['paired_height'] = 276
+        f.attrs['paired_width'] = 442
+        f.attrs['event_cut'] = 'y:[116:392], x:[102:544]'
         
+        # create two groups: event and rgb
+        event = f.create_group('event')
+        rgb = f.create_group('rgb')
+
+        # create two groups under event: original and ets processed
+        original = event.create_group('original')
+        ets = event.create_group('ets')
+
         # 保存 t, x, y, p 为数据集
-        f.create_dataset('t', data=t)
-        f.create_dataset('x', data=x)
-        f.create_dataset('y', data=y)
-        f.create_dataset('p', data=p)
+        original.create_dataset('t', data=ot)
+        original.create_dataset('x', data=ox)
+        original.create_dataset('y', data=oy)
+        original.create_dataset('p', data=op)
+        ets.create_dataset('t', data=t)
+        ets.create_dataset('x', data=x)
+        ets.create_dataset('y', data=y)
+        ets.create_dataset('p', data=p)
+
+        f.create_dataset('trigger', data=trigger)
+
+       
+        for root, dir, files in os.walk(root):
+                for dirnames in dir:
+                    if dirnames == 'rgb':
+                        imgs = []
+                        data_name = os.path.basename(root)
+                        rgb_folder = os.path.join(root, dirnames)
+                        rgb_files = [f for f in os.listdir(rgb_folder) if f.endswith(('.png', '.jpg', '.jpeg'))]
+                        rgb_files.sort()
+                        for f in rgb_files:
+                            img = cv2.imread(os.path.join(rgb_folder, f))
+                            imgs.append(img)
+                        imgs_array = np.stack(imgs, axis=0)
+                        rgb.create_dataset(data_name+'_rgb', data=imgs_array, compression='gzip', compression_opts=9)
+                    # elif dirnames == 'event_frames_trigger':
+                    #     imgs = []
+                    #     data_name = os.path.basename(root)
+                    #     event_folder = os.path.join(root, dirnames)
+                    #     event_files = [f for f in os.listdir(event_folder) if f.endswith(('.png', '.jpg', '.jpeg'))]
+                    #     event_files.sort()
+                    #     for f in event_files:
+                    #         img = cv2.imread(os.path.join(event_folder, f))
+                    #         imgs.append(img)
+                    #     imgs_array = np.stack(imgs, axis=0)
+                    #     event.create_dataset(data_name+'_eventframe', data=imgs_array, compression='gzip', compression_opts=9)
+                    elif dirnames == 'event_aligned':
+                        imgs = []
+                        data_name = os.path.basename(root)
+                        event_folder = os.path.join(root, dirnames)
+                        event_files = [f for f in os.listdir(event_folder) if f.endswith(('.png', '.jpg', '.jpeg'))]
+                        event_files.sort()
+                        for f in event_files:
+                            img = cv2.imread(os.path.join(event_folder, f))
+                            imgs.append(img)
+                        imgs_array = np.stack(imgs, axis=0)
+                        event.create_dataset(data_name+'_event_aligned', data=imgs_array, compression='gzip', compression_opts=9)
+                    elif dirnames == 'rgb_aligned':
+                        imgs = []
+                        data_name = os.path.basename(root)
+                        rgb_folder = os.path.join(root, dirnames)
+                        rgb_files = [f for f in os.listdir(rgb_folder) if f.endswith(('.png', '.jpg', '.jpeg'))]
+                        rgb_files.sort()
+                        for f in rgb_files:
+                            img = cv2.imread(os.path.join(rgb_folder, f))
+                            imgs.append(img)
+                        imgs_array = np.stack(imgs, axis=0)
+                        rgb.create_dataset(data_name+'rgb_aligned', data=imgs_array, compression='gzip', compression_opts=9)
+
+
+    print()
+    print('-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=')
+    print(f"Saved h5 file at {path}")
+    print('-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=')
+    print()

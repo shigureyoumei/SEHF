@@ -17,18 +17,20 @@ def save_frame_every_trigger(frame_path, h, w, x, y, p, t, trigger):
 
     if not os.path.exists(frame_path):
         os.makedirs(frame_path)
-    frame_id = 0
+    frame_id = 1
     total = len(trigger)
     start = 0
     end = 1
 
     idx_start = 0
-    idx_end = 0
     while end < total:
         while t[idx_start] < trigger[start]:
             idx_start += 1
-        while t[idx_end+1] < trigger[end]:
+        idx_end = idx_start + 1
+        while t[idx_end] < trigger[end]:
             idx_end += 1
+            if idx_end == len(t) - 1:
+                break
         x_temp = np.array(x[idx_start:idx_end], dtype='uint16')
         y_temp = np.array(y[idx_start:idx_end], dtype='uint16')
         p_temp = np.array(p[idx_start:idx_end], dtype='uint16')
@@ -45,7 +47,7 @@ def save_frame_every_trigger(frame_path, h, w, x, y, p, t, trigger):
         end += 2
         
     print('------------------------------------')
-    print("Over! total frame: " + str(frame_id))
+    print("Over! total frame: " + str(frame_id-1))
     print('------------------------------------')
     del x_temp, y_temp, p_temp
 
@@ -57,7 +59,7 @@ def save_frame_total_trigger(frame_path, h, w, x, y, p, t, trigger, dt):
 
     if not os.path.exists(frame_path):
         os.makedirs(frame_path)
-    frame_id = 0
+    frame_id = 1
 
     assert len(trigger) > 0 
     t_end = trigger[-1][1]
@@ -118,7 +120,7 @@ def save_frame_total_trigger(frame_path, h, w, x, y, p, t, trigger, dt):
     create_videos_from_images(frame_path, fps)
 
     print('------------------------------------')
-    print("Over! total frame: " + str(frame_id))
+    print("Over! total frame: " + str(frame_id-1))
     print('------------------------------------')
     del x_temp, y_temp, p_temp, t_temp
                 
@@ -128,90 +130,122 @@ if __name__ == '__main__':
 
     arg = argparse.ArgumentParser(description='save frame according to external trigger events')
     arg.add_argument('--folder_path', type=str, help='raw files folder path')
+    arg.add_argument('--ets', action='store_true', help='event trail suppression process')
     arg.add_argument('--mode1', action='store_true', help='save frames according to every trigger')
     arg.add_argument('--mode2', action='store_true', help='save frames between start and end trigger')
     arg.add_argument('--dt', type=int, default=10000, help='time interval')
-    arg.add_argument('--ets', action='store_true', help='event trail suppression process')
-    arg.add_argument('--saveh5', action='store_true', help='save triggerred events to h5 file')
     arg.add_argument('--video', action='store_true', help='create video from images')
     arg.add_argument('--fps', type=int, default=25, help='frames per second')
-
+    arg.add_argument('--registration', action='store_true', help='register the folder')
+    arg.add_argument('--saveh5', action='store_true', help='save triggerred events to h5 file')
+    
     args = arg.parse_args()
     folder_path = args.folder_path
     dt = args.dt
+    fps = args.fps
+
+
+    raw_files_list = []
 
     for root, dirname, files in os.walk(folder_path):
         for file in files:
             if file.endswith('.raw'):
-                raw_path = os.path.join(root, file)
-                record_raw = RawReader(raw_path)
-                h, w = record_raw.get_size()
-                mv_iterator = EventsIterator(input_path=raw_path, delta_t=dt, mode='delta_t')
+                raw_file_path = os.path.join(root, file)
+                raw_files_list.append(raw_file_path)
 
-                file_name = raw_path.split('.')[0]
+    print('**********************************************')
+    print('Total raw files number: ' + str(len(raw_files_list)))
+    print('**********************************************')
 
-                x_ = []
-                y_ = []
-                p_ = []
-                t_ = []
+    for raw_path in tqdm(raw_files_list, desc='Processing raw files', total=len(raw_files_list)):
+        print('**********************************************')
+        print('Processing file: ' + raw_path)
+        print('**********************************************')
+        print()
+        
+        root = os.path.dirname(os.path.dirname(raw_path))
+        h5_file_name = os.path.join(root, os.path.basename(root)+'.h5')
+        record_raw = RawReader(raw_path)
+        eh, ew = record_raw.get_size()
+        mv_iterator = EventsIterator(input_path=raw_path, delta_t=dt, mode='delta_t')
 
-                trigger_total = []
-                for evs in mv_iterator:
-                    if evs.size != 0:
-                        triggers = mv_iterator.reader.get_ext_trigger_events()
-                        x_.extend(evs['x'].tolist())
-                        y_.extend(evs['y'].tolist())
-                        p_.extend(evs['p'].tolist())
-                        t_.extend(evs['t'].tolist())
-                        if len(triggers) > 0:
-                            print("there are " + str(len(triggers)) + " external trigger events!)")
-                            for trigger in triggers:
-                                print(trigger)
-                                save = trigger.copy()
-                                trigger_total.append(save[1])
-                    mv_iterator.reader.clear_ext_trigger_events()
-                print("-----------------------------------------------")
-                print("Total number of external trigger events: " + str(len(trigger_total)))
+        file_name = raw_path.split('.')[0]
+
+        x_ = []
+        y_ = []
+        p_ = []
+        t_ = []
+
+        trigger_total = []
+        for evs in mv_iterator:
+            if evs.size != 0:
+                triggers = mv_iterator.reader.get_ext_trigger_events()
+                x_.extend(evs['x'].tolist())
+                y_.extend(evs['y'].tolist())
+                p_.extend(evs['p'].tolist())
+                t_.extend(evs['t'].tolist())
+                if len(triggers) > 0:
+                    # print("there are " + str(len(triggers)) + " external trigger events!)")
+                    for trigger in triggers:
+                        # print(trigger)
+                        save = trigger.copy()
+                        trigger_total.append(save[1])
+            mv_iterator.reader.clear_ext_trigger_events()
+        print("-----------------------------------------------")
+        print("Total number of external trigger events: " + str(len(trigger_total)))
 
 
-                # save events between first and last triggers
-                mask = np.where((t_ >= trigger_total[0]) & (t_ <= trigger_total[-1]))[0]
-                x_ = np.array(x_)[mask].tolist()
-                y_ = np.array(y_)[mask].tolist()
-                p_ = np.array(p_)[mask].tolist()
-                t_ = np.array(t_)[mask].tolist()
+        # save events between first and last triggers
+        mask = np.where((t_ >= trigger_total[0]) & (t_ <= trigger_total[-1]))[0]
+        x_ = np.array(x_)[mask].tolist()
+        y_ = np.array(y_)[mask].tolist()
+        p_ = np.array(p_)[mask].tolist()
+        t_ = np.array(t_)[mask].tolist()
+
+        # save original events
+        ox = x_
+        oy = y_
+        op = p_
+        ot = t_
+
+        if args.ets:
+            s_h = 480
+            s_w = 640
+            t_on = 1e6
+            t_off = 1e6
+            soft_t = 0
+
+            print('')
+            print('**********************************************')
+            print('Event Trail Suppression Process')
+            print('**********************************************')
+            t_, x_, y_, p_ = ets(t_, x_, y_, p_, s_w, s_h, t_on, t_off, soft_t)
+
+        
+
+        if args.mode1:
+            frame_path = os.path.join(os.path.dirname(raw_path), 'event_frames_trigger')
+            save_frame_every_trigger(frame_path, eh, ew, x_, y_, p_, t_, trigger_total)
+            if args.video:
+                print('------------------------------------')
+                print("Creating video from images in the folder")
+                print('------------------------------------')
+                create_videos_from_images(frame_path, args.fps)
+        if args.mode2:
+            frame_path = os.path.join(os.path.dirname(raw_path), 'event_frames_dt')
+            save_frame_total_trigger(frame_path, eh, ew, x_, y_, p_, t_, trigger_total, dt)
+            if args.video:
+                print('------------------------------------')
+                print("Creating video from images in the folder")
+                print('------------------------------------')
+                create_videos_from_images(frame_path, 1000000//dt)
+
+        if args.registration:
+            align_imgs_and_create_videos(root, fps)
+            print('Creating RGB event video...')
+            create_rgb_event_video(root, fps)
 
 
-                if args.ets:
-                    s_h = 480
-                    s_w = 640
-                    t_on = 1e6
-                    t_off = 1e6
-                    soft_t = 0
-
-                    print('')
-                    print('**********************************************')
-                    print('Event Trail Suppression Process')
-                    print('**********************************************')
-                    t_, x_, y_, p_ = ets(t_, x_, y_, p_, s_w, s_h, t_on, t_off, soft_t)
-
-                if args.saveh5:
-                    file_name = file_name+'.h5'
-                    save_h5(file_name, h, w, x_, y_, p_, t_)
-
-                if args.mode1:
-                    frame_path = os.path.join(os.path.dirname(raw_path), 'event')
-                    save_frame_every_trigger(frame_path, h, w, x_, y_, p_, t_, trigger_total)
-                    if args.video:
-                        print('------------------------------------')
-                        print("Creating video from images in the folder")
-                        print('------------------------------------')
-                        create_videos_from_images(frame_path, args.fps)
-                if args.mode2:
-                    frame_path = os.path.join(os.path.dirname(raw_path), 'event_frames_dt')
-                    save_frame_total_trigger(frame_path, h, w, x_, y_, p_, t_, trigger_total, dt)
-                    if args.video:
-                        print('------------------------------------')
-                        print("Creating video from images in the folder")
-                        print('------------------------------------')
-                        create_videos_from_images(frame_path, 1000000//dt)
+        if args.saveh5:
+            save_h5(root, h5_file_name, eh, ew, x_, y_, p_, t_, ox, oy, op, ot, trigger_total)
+        
