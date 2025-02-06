@@ -164,6 +164,29 @@ if __name__ == '__main__':
         print()
         
         root = os.path.dirname(os.path.dirname(raw_path))
+
+        # Wether this raw file has been processed
+        processed_flag = False
+        for root_, dir_, file_ in os.walk(root):
+            if 'event_frames_trigger' in dir_:
+                processed_flag = True
+                break
+            if 'event_frames_dt' in dir_:
+                processed_flag = True
+                break
+            if 'event_aligned' in dir_:
+                processed_flag = True
+                break
+            if 'egb_aligned' in dir_:
+                processed_flag = True
+                break 
+                
+        if processed_flag:
+            print()
+            print('-------The raw file has been processed, skip it...-------')
+            print()
+            continue
+
         h5_file_name = os.path.join(root, os.path.basename(root)+'.h5')
         record_raw = RawReader(raw_path)
         eh, ew = record_raw.get_size()
