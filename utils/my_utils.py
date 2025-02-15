@@ -104,10 +104,10 @@ def fetch_trigger(t, x, y, p, trigger):
         idx_end = idx_start
         while t[idx_end] < trigger[t_end]:
             idx_end += 1
-        triggered_t.append(t[idx_start:idx_end])
-        triggered_x.append(x[idx_start:idx_end])
-        triggered_y.append(y[idx_start:idx_end])
-        triggered_p.append(p[idx_start:idx_end])
+        triggered_t.append(np.array(t[idx_start:idx_end], dtype='uint16'))
+        triggered_x.append(np.array(x[idx_start:idx_end], dtype='uint16'))
+        triggered_y.append(np.array(y[idx_start:idx_end], dtype='uint16'))
+        triggered_p.append(np.array(p[idx_start:idx_end], dtype='uint16'))
         t_start += 2
         t_end += 2
 
@@ -448,11 +448,13 @@ def save_h5(root, path, eh, ew, ox, oy, op, ot, trigger):
         # ets.create_dataset('y', data=y)
         # ets.create_dataset('p', data=p)
 
-        tt, tx, ty, tp = fetch_trigger(ot, ox, oy, op, trigger)
-        triggered_event.create_dataset('t', data=tt)
-        triggered_event.create_dataset('x', data=tx)
-        triggered_event.create_dataset('y', data=ty)
-        triggered_event.create_dataset('p', data=tp)
+        # tt, tx, ty, tp = fetch_trigger(ot, ox, oy, op, trigger)
+
+        
+        # triggered_event.create_dataset('t', data=tt)
+        # triggered_event.create_dataset('x', data=tx)
+        # triggered_event.create_dataset('y', data=ty)
+        # triggered_event.create_dataset('p', data=tp)
 
         f.create_dataset('trigger', data=trigger)
 
@@ -481,17 +483,17 @@ def save_h5(root, path, eh, ew, ox, oy, op, ot, trigger):
                     #         imgs.append(img)
                     #     imgs_array = np.stack(imgs, axis=0)
                     #     event.create_dataset(data_name+'_eventframe', data=imgs_array, compression='gzip', compression_opts=9)
-                    elif dirnames == 'event_aligned':
-                        imgs = []
-                        data_name = os.path.basename(root)
-                        event_folder = os.path.join(root, dirnames)
-                        event_files = [f for f in os.listdir(event_folder) if f.endswith(('.png', '.jpg', '.jpeg'))]
-                        event_files.sort()
-                        for f in event_files:
-                            img = cv2.imread(os.path.join(event_folder, f))
-                            imgs.append(img)
-                        imgs_array = np.stack(imgs, axis=0)
-                        event.create_dataset(data_name+'_event_aligned', data=imgs_array, compression='gzip', compression_opts=9)
+                    # elif dirnames == 'event_aligned':
+                    #     imgs = []
+                    #     data_name = os.path.basename(root)
+                    #     event_folder = os.path.join(root, dirnames)
+                    #     event_files = [f for f in os.listdir(event_folder) if f.endswith(('.png', '.jpg', '.jpeg'))]
+                    #     event_files.sort()
+                    #     for f in event_files:
+                    #         img = cv2.imread(os.path.join(event_folder, f))
+                    #         imgs.append(img)
+                    #     imgs_array = np.stack(imgs, axis=0)
+                    #     event.create_dataset(data_name+'_event_aligned', data=imgs_array, compression='gzip', compression_opts=9)
                     elif dirnames == 'rgb_aligned':
                         imgs = []
                         data_name = os.path.basename(root)
