@@ -28,7 +28,7 @@
 
                 //---------readrawtrigger--------
                 // "--folder_path", "/mnt/d/Storage/ball1",
-                "--folder_path", "/mnt/e/Program/PROJECT/dataset/DATASETS/try1",
+                "--folder_path", "/mnt/e/Program/PROJECT/dataset/DATASETS/try6",
                 // "--ets",
                 "--mode1",
                 // "--mode2", 
@@ -36,7 +36,7 @@
                 // "--video",
                 "--fps","25",
                 "--registration",
-                // "--saveh5",
+                "--saveh5",
 
                 //------------ets------------
                 // "--root","data/chair/chair_10.0ms/h5",

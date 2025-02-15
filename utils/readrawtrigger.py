@@ -270,5 +270,6 @@ if __name__ == '__main__':
 
 
         if args.saveh5:
-            save_h5(root, h5_file_name, eh, ew, x_, y_, p_, t_, ox, oy, op, ot, trigger_total)
+            # save_h5(root, h5_file_name, eh, ew, x_, y_, p_, t_, ox, oy, op, ot, trigger_total)
+            save_h5(root, h5_file_name, eh, ew, x_, y_, p_, t_, trigger_total)
         
