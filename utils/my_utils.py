@@ -23,7 +23,7 @@ def print_h5_contents(file_path):
 
 # create images from h5 files
 # example: create_images_from_h5('Event_Trail_Suppression/data/test_20.0ms/h5', 480, 640)
-def createe_img_from_h5(root, H, W):
+def create_img_from_h5(root, H, W):
     h5_files_list = []
     for root, dir, files in os.walk(root):
         for file in files:
@@ -83,38 +83,80 @@ def create_videos_from_images(root, fps):
         if all(is_image_file(file) for file in files):
             create_video_from_images(subdir, fps, video_save_path)
 
+
+# fetch all triggered event
+def fetch_trigger(t, x, y, p, trigger):
+    triggered_t = []
+    triggered_x = []
+    triggered_y = []
+    triggered_p = []
+
+    total = len(trigger)
+    t_start = 0
+    t_end = 1
+
+    idx_start = 0
+    idx_end = idx_start
+
+    while t_end < total:
+        while t[idx_start] < trigger[t_start]:
+            idx_start += 1
+        idx_end = idx_start
+        while t[idx_end] < trigger[t_end]:
+            idx_end += 1
+        triggered_t.append(t[idx_start:idx_end])
+        triggered_x.append(x[idx_start:idx_end])
+        triggered_y.append(y[idx_start:idx_end])
+        triggered_p.append(p[idx_start:idx_end])
+        t_start += 2
+        t_end += 2
+
+    return triggered_t, triggered_x, triggered_y, triggered_p
+
     
+
+
 # save triggered event frames
 def save_frame_trigger(frame_path, h, w, x, y, p, t, trigger):
     if not os.path.exists(frame_path):
         os.makedirs(frame_path)
     frame_id = 0
-    total = len(trigger)
-    start = 0
-    end = 1
 
-    idx_start = 0
-    idx_end = 0
-    while end < total:
-        while t[idx_start] < trigger[start][1]:
-            idx_start += 1
-        while t[idx_end+1] < trigger[end][1]:
-            idx_end += 1
-        x_temp = x[idx_start:idx_end]
-        y_temp = y[idx_start:idx_end]
-        p_temp = p[idx_start:idx_end]
-        t_temp = t[idx_start:idx_end]
-        # t_temp = np.array(t[mask(t)], dtype='int32')
-        # p_temp = np.array(p[mask(t)], dtype='int8')
-        # x_temp = np.array(x[mask(t)], dtype='int8')
-        # y_temp = np.array(y[mask(t)], dtype='int8')
-        img = render(x_temp, y_temp, p_temp, h, w)
+    t_, x_, y_, p_ = fetch_trigger(t, x, y, p, trigger)
+
+    for _t, _x, _y, _p in zip(t_, x_, y_, p_):
+        img = render(_x, _y, _p, h, w)
         frame_name = os.path.join(frame_path, str(frame_id).zfill(6) + '.png')
         cv2.imwrite(frame_name, img)
         frame_id += 1
-        start += 2
-        end += 2
     print("Over! total frame: " + str(frame_id))
+
+
+
+
+
+    # total = len(trigger)
+    # start = 0
+    # end = 1
+
+    # idx_start = 0
+    # idx_end = 0
+    # while end < total:
+    #     while t[idx_start] < trigger[start][1]:
+    #         idx_start += 1
+    #     while t[idx_end+1] < trigger[end][1]:
+    #         idx_end += 1
+    #     x_temp = x[idx_start:idx_end]
+    #     y_temp = y[idx_start:idx_end]
+    #     p_temp = p[idx_start:idx_end]
+    #     t_temp = t[idx_start:idx_end]
+    #     img = render(x_temp, y_temp, p_temp, h, w)
+    #     frame_name = os.path.join(frame_path, str(frame_id).zfill(6) + '.png')
+    #     cv2.imwrite(frame_name, img)
+    #     frame_id += 1
+    #     start += 2
+    #     end += 2
+    # print("Over! total frame: " + str(frame_id))
 
 # read all raw files from given root path and save triggered event frames
 # example: readrawtrigger(path)
@@ -217,7 +259,11 @@ def align_imgs_and_create_videos(path, fps):
                     file_path = os.path.join(subfolder_path, file)
                     rgb_image = cv2.imread(file_path)
                     # aligned_rgb_image = cv2.warpPerspective(rgb_image, matrix, (441, 282))
-                    aligned_rgb_image = cv2.resize(rgb_image, (442, 276))
+                    # aligned_rgb_image = cv2.resize(rgb_image, (442, 276))  #baseline version
+                    # aligned_rgb_image = cv2.resize(rgb_image, (440, 275))   #缩小版
+                    # aligned_rgb_image = cv2.resize(rgb_image, (445, 278))   #放大版1
+                    aligned_rgb_image = cv2.resize(rgb_image, (448, 280))   #放大版2
+
                     #img_name = file.split('_')[1]   #rgb files' names contain '_'
                     img_name = file
                     output_rgb_image_path = os.path.join(rgb_aligned_folder, img_name)
@@ -232,8 +278,11 @@ def align_imgs_and_create_videos(path, fps):
                 for file in os.listdir(subfolder_path):
                     file_path = os.path.join(subfolder_path, file)
                     event_image = cv2.imread(file_path)
-                    # event_correct = event_image[102:378,99:541].copy()
-                    event_correct = event_image[116:392,102:544].copy()
+                    # event_correct = event_image[117:393,97:539].copy()  #baseline version
+                    # event_correct = event_image[117:392,98:538].copy()  #缩小版
+                    # event_correct = event_image[116:394,96:541].copy()  #放大版1
+                    event_correct = event_image[115:395,94:542].copy()  #放大版2
+
                     output_event_image_path = os.path.join(event_aligned_folder, file)
                     cv2.imwrite(output_event_image_path, event_correct)
                 create_videos_from_images(event_aligned_folder, fps)
@@ -367,7 +416,8 @@ def ets(t, x, y, p, s_w, s_h, threshold_t_on, threshold_t_off, soft_thr):
 
 
 # save h5 files
-def save_h5(root, path, eh, ew, t, x, p, y, ox, oy, op, ot, trigger):
+def save_h5(root, path, eh, ew, ox, oy, op, ot, trigger):
+# def save_h5(root, path, eh, ew, t, x, p, y, ox, oy, op, ot, trigger): # ets
 
     with h5py.File(path, 'w') as f:
         # 保存 h 和 w 为属性
@@ -375,27 +425,34 @@ def save_h5(root, path, eh, ew, t, x, p, y, ox, oy, op, ot, trigger):
         f.attrs['event_width'] = ew
         f.attrs['rgb_height'] = 1216
         f.attrs['rgb_width'] = 1936
-        f.attrs['paired_height'] = 276
-        f.attrs['paired_width'] = 442
-        f.attrs['event_cut'] = 'y:[116:392], x:[102:544]'
+        f.attrs['paired_height'] = 280
+        f.attrs['paired_width'] = 448
+        f.attrs['event_cut'] = 'y:[115:395], x:[94:542]'
         
         # create two groups: event and rgb
         event = f.create_group('event')
         rgb = f.create_group('rgb')
 
-        # create two groups under event: original and ets processed
+        # create two groups under event: original and triggered_event
         original = event.create_group('original')
-        ets = event.create_group('ets')
+        triggered_event = event.create_group('triggered_event')
+        # ets = event.create_group('ets')
 
         # 保存 t, x, y, p 为数据集
         original.create_dataset('t', data=ot)
         original.create_dataset('x', data=ox)
         original.create_dataset('y', data=oy)
         original.create_dataset('p', data=op)
-        ets.create_dataset('t', data=t)
-        ets.create_dataset('x', data=x)
-        ets.create_dataset('y', data=y)
-        ets.create_dataset('p', data=p)
+        # ets.create_dataset('t', data=t)
+        # ets.create_dataset('x', data=x)
+        # ets.create_dataset('y', data=y)
+        # ets.create_dataset('p', data=p)
+
+        tt, tx, ty, tp = fetch_trigger(ot, ox, oy, op, trigger)
+        triggered_event.create_dataset('t', data=tt)
+        triggered_event.create_dataset('x', data=tx)
+        triggered_event.create_dataset('y', data=ty)
+        triggered_event.create_dataset('p', data=tp)
 
         f.create_dataset('trigger', data=trigger)
 
