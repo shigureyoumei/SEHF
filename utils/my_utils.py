@@ -58,8 +58,8 @@ def create_videos_from_images(root, fps):
         images.sort(key=lambda x: int(x.split('_')[-1].split('.')[0]))  # Ensure the images are in the correct order
         # images.sort(key=lambda x:int(x.split('.')[0]))
         print(f"Creating video from {len(images)} images in {image_folder}")
-        print('images after sorted:')
-        print(images)
+        # print('images after sorted:')
+        # print(images)
         if not images:
             return
 
@@ -104,6 +104,8 @@ def fetch_trigger(t, x, y, p, trigger):
         idx_end = idx_start
         while t[idx_end] < trigger[t_end]:
             idx_end += 1
+            if idx_end == len(t):
+                break
         triggered_t.append(np.array(t[idx_start:idx_end], dtype='uint16'))
         triggered_x.append(np.array(x[idx_start:idx_end], dtype='uint16'))
         triggered_y.append(np.array(y[idx_start:idx_end], dtype='uint16'))
@@ -130,10 +132,6 @@ def save_frame_trigger(frame_path, h, w, x, y, p, t, trigger):
         cv2.imwrite(frame_name, img)
         frame_id += 1
     print("Over! total frame: " + str(frame_id))
-
-
-
-
 
     # total = len(trigger)
     # start = 0
@@ -435,7 +433,7 @@ def save_h5(root, path, eh, ew, ox, oy, op, ot, trigger):
 
         # create two groups under event: original and triggered_event
         original = event.create_group('original')
-        triggered_event = event.create_group('triggered_event')
+        
         # ets = event.create_group('ets')
 
         # 保存 t, x, y, p 为数据集
@@ -443,21 +441,12 @@ def save_h5(root, path, eh, ew, ox, oy, op, ot, trigger):
         original.create_dataset('x', data=ox)
         original.create_dataset('y', data=oy)
         original.create_dataset('p', data=op)
+        
+        original.create_dataset('trigger', data=trigger)
         # ets.create_dataset('t', data=t)
         # ets.create_dataset('x', data=x)
         # ets.create_dataset('y', data=y)
         # ets.create_dataset('p', data=p)
-
-        # tt, tx, ty, tp = fetch_trigger(ot, ox, oy, op, trigger)
-
-        
-        # triggered_event.create_dataset('t', data=tt)
-        # triggered_event.create_dataset('x', data=tx)
-        # triggered_event.create_dataset('y', data=ty)
-        # triggered_event.create_dataset('p', data=tp)
-
-        f.create_dataset('trigger', data=trigger)
-
        
         for root, dir, files in os.walk(root):
                 for dirnames in dir:

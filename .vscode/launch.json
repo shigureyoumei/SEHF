@@ -27,8 +27,8 @@
                 // "--fps","100"
 
                 //---------readrawtrigger--------
-                // "--folder_path", "/mnt/d/Storage/ball1",
-                "--folder_path", "/mnt/e/Program/PROJECT/dataset/DATASETS/try6",
+                "--folder_path", "/mnt/d/Storage",
+                // "--folder_path", "/mnt/e/Program/PROJECT/dataset/DATASETS/try1",
                 // "--ets",
                 "--mode1",
                 // "--mode2", 
