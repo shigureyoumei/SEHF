@@ -197,7 +197,11 @@ if __name__ == '__main__':
             print()
             continue
 
-        h5_file_name = os.path.join(root, os.path.basename(root)+'.h5')
+
+        section = os.path.basename(root) # 1, 2, 3, ..., 20
+        ball_No = os.path.basename(os.path.dirname(root)) # ball1, ball2, ball3, ..., ball9
+        h5_file_name = ball_No + '_' + section + '.h5'
+        h5_file_name = os.path.join(root, h5_file_name)
         record_raw = RawReader(raw_path)
         eh, ew = record_raw.get_size()
         mv_iterator = EventsIterator(input_path=raw_path, delta_t=dt, mode='delta_t')
