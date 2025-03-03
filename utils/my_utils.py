@@ -1,3 +1,4 @@
+import time
 import h5py
 import os
 import cv2
@@ -72,7 +73,7 @@ def create_videos_from_images(root, fps):
             video.write(cv2.imread(os.path.join(image_folder, image)))
 
         video.release()
-
+        time.sleep(1)
         print(f"Video saved at {video_save_path}")
 
     video_folder = root + "/video"
@@ -279,8 +280,9 @@ def align_imgs_and_create_videos(path, fps):
                     # event_correct = event_image[117:393,97:539].copy()  #baseline version
                     # event_correct = event_image[117:392,98:538].copy()  #缩小版
                     # event_correct = event_image[116:394,96:541].copy()  #放大版1
-                    event_correct = event_image[115:395,96:544].copy()  #放大版2 平移
+                    # event_correct = event_image[115:395,96:544].copy()  #放大版2 平移
                     # event_correct = event_image[115:395,94:542].copy()  #放大版2 旋转
+                    event_correct = event_image[115:395,95:543].copy()  #放大版3 
 
                     output_event_image_path = os.path.join(event_aligned_folder, file)
                     cv2.imwrite(output_event_image_path, event_correct)
@@ -414,9 +416,33 @@ def ets(t, x, y, p, s_w, s_h, threshold_t_on, threshold_t_off, soft_thr):
     return t, x, y, p
 
 
+
+# mask events in the given region
+def mask_events(_t, _x, _y, _p):
+    total = len(_t)
+    x = np.array(_x, dtype='uint16')
+    y = np.array(_y, dtype='uint16')
+    p = np.array(_p, dtype='uint16')
+    t = np.array(_t, dtype='uint64')
+    mask = (x[0:total]>=95) & (x[0:total]<543) & (y[0:total]>=115) & (y[0:total]<395)
+    indices = np.where(mask)[0]
+    filter_t = t[indices]
+    filter_x = x[indices]
+    filter_y = y[indices]
+    filter_p = p[indices]
+
+    filter_x = filter_x - 95
+    filter_y = filter_y - 115
+
+    return filter_t, filter_x, filter_y, filter_p
+
+
+
 # save h5 files
 def save_h5(root, path, eh, ew, ox, oy, op, ot, trigger):
 # def save_h5(root, path, eh, ew, t, x, p, y, ox, oy, op, ot, trigger): # ets
+
+    save_t, save_x, save_y, save_p = mask_events(ot, ox, oy, op)
 
     with h5py.File(path, 'w') as f:
         # 保存 h 和 w 为属性
@@ -426,7 +452,7 @@ def save_h5(root, path, eh, ew, ox, oy, op, ot, trigger):
         f.attrs['rgb_width'] = 1936
         f.attrs['paired_height'] = 280
         f.attrs['paired_width'] = 448
-        f.attrs['event_cut'] = 'y:[115:395], x:[94:542]'
+        
         
         # create two groups: event and rgb
         event = f.create_group('event')
@@ -438,16 +464,12 @@ def save_h5(root, path, eh, ew, ox, oy, op, ot, trigger):
         # ets = event.create_group('ets')
 
         # 保存 t, x, y, p 为数据集
-        original.create_dataset('t', data=ot)
-        original.create_dataset('x', data=ox)
-        original.create_dataset('y', data=oy)
-        original.create_dataset('p', data=op)
+        original.create_dataset('t', data=save_t)
+        original.create_dataset('x', data=save_x)
+        original.create_dataset('y', data=save_y)
+        original.create_dataset('p', data=save_p)
         
-        original.create_dataset('trigger', data=trigger)
-        # ets.create_dataset('t', data=t)
-        # ets.create_dataset('x', data=x)
-        # ets.create_dataset('y', data=y)
-        # ets.create_dataset('p', data=p)
+        event.create_dataset('trigger', data=trigger)
        
         for root, dir, files in os.walk(root):
                 for dirnames in dir:
