@@ -4,7 +4,7 @@ import h5py
 import os
 import numpy as np
 
-class pairDateset(Dataset.Dataset):
+class pairDateset(Dataset):
     def __init__(self, path_list, w, h):
         """
         处理数据的两种做法：
@@ -15,7 +15,7 @@ class pairDateset(Dataset.Dataset):
         self.w = w
         self.h = h
 
-    def fetch_trigger(t, x, y, p, trigger):
+    def fetch_trigger(self, t, x, y, p, trigger):
         triggered_t = []
         triggered_x = []
         triggered_y = []
@@ -29,17 +29,23 @@ class pairDateset(Dataset.Dataset):
         idx_end = idx_start
 
         while t_end < total:
+            """
+            due to the trigger is not exactly interger 2015, the interval between two trigger is either 2015 or 2016
+            when the interval is 2016, we mannually decrease the end trigger by 1
+            """
+            if trigger[t_end] - trigger[t_start] == 2016:  
+                trigger[t_end] -= 1
             while t[idx_start] < trigger[t_start]:
                 idx_start += 1
             idx_end = idx_start
-            while t[idx_end] < trigger[t_end]:
+            while t[idx_end+1] < trigger[t_end]:
                 idx_end += 1
-                if idx_end == len(t):
+                if idx_end+1 == len(t):
                     break
-            triggered_t.append(np.array(t[idx_start:idx_end], dtype='uint16'))
-            triggered_x.append(np.array(x[idx_start:idx_end], dtype='uint16'))
-            triggered_y.append(np.array(y[idx_start:idx_end], dtype='uint16'))
-            triggered_p.append(np.array(p[idx_start:idx_end], dtype='uint16'))
+            triggered_t.append(np.array(t[idx_start:idx_end], dtype='uint32'))
+            triggered_x.append(np.array(x[idx_start:idx_end], dtype='uint32'))
+            triggered_y.append(np.array(y[idx_start:idx_end], dtype='uint32'))
+            triggered_p.append(np.array(p[idx_start:idx_end], dtype='uint32'))
             t_start += 2
             t_end += 2
 
@@ -49,9 +55,10 @@ class pairDateset(Dataset.Dataset):
         total = len(t)
         map = []
         for i in range(total):
-            slice = no.zeros((self.w, self.h, interval), dtype='uint16')
+            slice = np.zeros((self.w, self.h, interval), dtype='int8')
+            t[i] = t[i] - t[i][0]
             for j in range(len(t[i])):
-                slice[x[i][j], y[i][j], t[i][j]] = p[i][j]
+                slice[x[i][j], y[i][j], t[i][j]] = np.int8(p[i][j])
             map.append(slice)
         return map
 
@@ -69,13 +76,18 @@ class pairDateset(Dataset.Dataset):
 
             trigger = f['event/trigger'][:]
 
+
             interval = trigger[1] - trigger[0]
 
-            rgb_aligned = f['rgb/1_rgb_aligned'][:]
+            rgb_aligned = f['rgb/1rgb_aligned'][:]
 
             t_t, t_x, t_y, t_p = self.fetch_trigger(t, x, y, p, trigger)
 
+            # t_t = t_t - trigger[0]
+
+
             map = self.stack_data(t_t, t_x, t_y, t_p, interval)
+            # event = np.stack(map, axis=0)
 
         return map, rgb_aligned
     
@@ -99,5 +111,14 @@ if __name__ == '__main__':
 
     train_dataset = pairDateset(train_list, w, h)
     test_dataset = pairDateset(test_list, w, h)
-    train_loader = DataLoader(train_dataset, batch_size=1, shuffle=False, num_workers=4)
-    test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=4)
+
+    print(f'Train dataset: \n {train_dataset} \n')
+    print(f'length of train dataset: {len(train_dataset)} \n')
+    # print(train_dataset.__getitem__(0))
+    # print(train_dataset[0])
+
+    train_loader = DataLoader(train_dataset, batch_size=1, shuffle=False, num_workers=0)
+    test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=0)
+
+    for event, rgb in train_loader:
+        print(f'item: {len(event), rgb.shape}')
