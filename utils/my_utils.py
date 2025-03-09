@@ -280,9 +280,9 @@ def align_imgs_and_create_videos(path, fps):
                     # event_correct = event_image[117:393,97:539].copy()  #baseline version
                     # event_correct = event_image[117:392,98:538].copy()  #缩小版
                     # event_correct = event_image[116:394,96:541].copy()  #放大版1
-                    # event_correct = event_image[115:395,96:544].copy()  #放大版2 平移
+                    event_correct = event_image[115:395,96:544].copy()  #放大版2 平移
                     # event_correct = event_image[115:395,94:542].copy()  #放大版2 旋转
-                    event_correct = event_image[115:395,95:543].copy()  #放大版3 
+                    # event_correct = event_image[115:395,95:543].copy()  #放大版3 
 
                     output_event_image_path = os.path.join(event_aligned_folder, file)
                     cv2.imwrite(output_event_image_path, event_correct)

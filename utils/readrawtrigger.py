@@ -190,6 +190,10 @@ if __name__ == '__main__':
             if 'egb_aligned' in dir_:
                 processed_flag = True
                 break 
+            # for file in file_:
+            #     if file.endswith('.h5'):
+            #         processed_flag = True
+            #         break
                 
         if processed_flag:
             print()
