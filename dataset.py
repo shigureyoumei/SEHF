@@ -96,7 +96,7 @@ class pairDateset(Dataset):
 
 
 if __name__ == '__main__':
-    path = '/mnt/d/data'
+    path = 'data'
     train_list = []
     test_list = []
     for root, dirs, files in os.walk(path):
@@ -119,8 +119,8 @@ if __name__ == '__main__':
     # print(train_dataset.__getitem__(0))
     # print(train_dataset[0])
 
-    train_loader = DataLoader(train_dataset, batch_size=1, shuffle=False, num_workers=0)
-    test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=0)
+    train_loader = DataLoader(train_dataset, batch_size=2, shuffle=False, num_workers=4)
+    test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=4)
 
     for event, rgb in train_loader:
         print(f'item: {len(event), rgb.shape}')

@@ -11,7 +11,7 @@ import time
 import datetime
 from tqdm import tqdm
 
-from models.template import dataset 
+from dataset import *
 from torch.utils.data import DataLoader
 
 import subprocess
