@@ -422,7 +422,7 @@ def mask_events(_t, _x, _y, _p):
     total = len(_t)
     x = np.array(_x, dtype='uint16')
     y = np.array(_y, dtype='uint16')
-    p = np.array(_p, dtype='uint16')
+    p = np.array(_p, dtype='uint8')
     t = np.array(_t, dtype='uint64')
     mask = (x[0:total]>=95) & (x[0:total]<543) & (y[0:total]>=115) & (y[0:total]<395)
     indices = np.where(mask)[0]
@@ -475,7 +475,6 @@ def save_h5(root, path, eh, ew, ox, oy, op, ot, trigger):
                 for dirnames in dir:
                     if dirnames == 'rgb':
                         imgs = []
-                        data_name = os.path.basename(root)
                         rgb_folder = os.path.join(root, dirnames)
                         rgb_files = [f for f in os.listdir(rgb_folder) if f.endswith(('.png', '.jpg', '.jpeg'))]
                         rgb_files.sort()
@@ -483,7 +482,7 @@ def save_h5(root, path, eh, ew, ox, oy, op, ot, trigger):
                             img = cv2.imread(os.path.join(rgb_folder, f))
                             imgs.append(img)
                         imgs_array = np.stack(imgs, axis=0)
-                        rgb.create_dataset(data_name+'_rgb', data=imgs_array, compression='gzip', compression_opts=9)
+                        rgb.create_dataset('rgb_original', data=imgs_array, compression='gzip', compression_opts=9)
                     # elif dirnames == 'event_frames_trigger':
                     #     imgs = []
                     #     data_name = os.path.basename(root)
@@ -508,7 +507,6 @@ def save_h5(root, path, eh, ew, ox, oy, op, ot, trigger):
                     #     event.create_dataset(data_name+'_event_aligned', data=imgs_array, compression='gzip', compression_opts=9)
                     elif dirnames == 'rgb_aligned':
                         imgs = []
-                        data_name = os.path.basename(root)
                         rgb_folder = os.path.join(root, dirnames)
                         rgb_files = [f for f in os.listdir(rgb_folder) if f.endswith(('.png', '.jpg', '.jpeg'))]
                         rgb_files.sort()
@@ -516,7 +514,7 @@ def save_h5(root, path, eh, ew, ox, oy, op, ot, trigger):
                             img = cv2.imread(os.path.join(rgb_folder, f))
                             imgs.append(img)
                         imgs_array = np.stack(imgs, axis=0)
-                        rgb.create_dataset(data_name+'rgb_aligned', data=imgs_array, compression='gzip', compression_opts=9)
+                        rgb.create_dataset('rgb_aligned', data=imgs_array, compression='gzip', compression_opts=9)
 
 
     print()

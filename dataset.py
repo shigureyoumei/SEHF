@@ -43,9 +43,9 @@ class pairDateset(Dataset):
                 if idx_end+1 == len(t):
                     break
             triggered_t.append(np.array(t[idx_start:idx_end], dtype='uint32'))
-            triggered_x.append(np.array(x[idx_start:idx_end], dtype='uint32'))
-            triggered_y.append(np.array(y[idx_start:idx_end], dtype='uint32'))
-            triggered_p.append(np.array(p[idx_start:idx_end], dtype='uint32'))
+            triggered_x.append(np.array(x[idx_start:idx_end], dtype='uint16'))
+            triggered_y.append(np.array(y[idx_start:idx_end], dtype='uint16'))
+            triggered_p.append(np.array(p[idx_start:idx_end], dtype='uint8'))
             t_start += 2
             t_end += 2
 
@@ -86,10 +86,12 @@ class pairDateset(Dataset):
             # t_t = t_t - trigger[0]
 
 
-            map = self.stack_data(t_t, t_x, t_y, t_p, interval)
+            # map = self.stack_data(t_t, t_x, t_y, t_p, interval)
             # event = np.stack(map, axis=0)
 
-        return map, rgb_aligned
+            event = (t_t, t_x, t_y, t_p)
+
+        return event, rgb_aligned
     
 
 
