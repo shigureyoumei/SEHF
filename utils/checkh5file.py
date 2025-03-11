@@ -16,5 +16,11 @@ def print_h5_contents(file_path):
 # 使用示例
 # file_path = '/mnt/e/Program/PROJECT/dataset/DATASETS/try6/try6.h5'
 # file_path = '/mnt/d/Storage/ball1/1/1.h5'
-file_path = '/mnt/d/data/ball1_2.h5'
+file_path = '/mnt/d/ball_data/ball1_1_1.h5'
 print_h5_contents(file_path)
+
+with h5py.File(file_path, 'r') as f:
+    t = f['t']
+    rgb = f['rgb'][:]
+
+    print(f't: {t.shape}, rgb: {rgb.shape}')

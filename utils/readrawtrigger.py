@@ -176,8 +176,8 @@ if __name__ == '__main__':
         root = os.path.dirname(os.path.dirname(raw_path))
 
         # Wether this raw file has been processed
-        # processed_flag = False
-        # for root_, dir_, file_ in os.walk(root):
+        processed_flag = False
+        for root_, dir_, file_ in os.walk(root):
         #     if 'event_frames_trigger' in dir_:
         #         processed_flag = True
         #         break
@@ -190,16 +190,16 @@ if __name__ == '__main__':
         #     if 'egb_aligned' in dir_:
         #         processed_flag = True
         #         break 
-        #     # for file in file_:
-        #     #     if file.endswith('.h5'):
-        #     #         processed_flag = True
-        #     #         break
+            for file in file_:
+                if file.endswith('.h5'):
+                    processed_flag = True
+                    break
                 
-        # if processed_flag:
-        #     print()
-        #     print('-------The raw file has been processed, skip it...-------')
-        #     print()
-        #     continue
+        if processed_flag:
+            print()
+            print('-------The raw file has been processed, skip it...-------')
+            print()
+            continue
 
 
         section = os.path.basename(root) # 1, 2, 3, ..., 20
