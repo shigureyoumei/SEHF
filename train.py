@@ -14,8 +14,12 @@ from tqdm import tqdm
 from dataset import *
 from torch.utils.data import DataLoader
 
+import model
+
 import subprocess
 import webbrowser
+
+import model.SEHF
 
 
 
@@ -44,73 +48,69 @@ def main():
     
 
     parser = argparse.ArgumentParser(description='input project name here')
-    parser.add_argument('--arg', type=int, default=10, help='input arg here')
-    parser.add_argument('--root', type=str, default='root', help='input root here')
+    # parser.add_argument('--arg', type=int, default=10, help='input arg here')
+    # parser.add_argument('--root', type=str, default='~/projects/', help='project root')
+    parser.add_argument('--data', type=str, default='data', help='data path')
     parser.add_argument('--out_dir', type=str, default='out_dir', help='input out_dir here')
-    parser.add_argument('--amp', action='store_true', help='input amp here')
+    parser.add_argument('--amp', action='store_true', help='wether train with amp')
     parser.add_argument('--bs', type=int, default=128, help='input batchsize here')
     parser.add_argument('--epochs', type=int, default=100, help='input epochs here')
     parser.add_argument('--lr', type=float, default=0.01, help='input lr here')
+    parser.add_argument('--w', type=int, default=448, help='width of frame')
+    parser.add_argument('--h', type=int, default=280, help='height of frame')
+    parser.add_argument('--resume', type=str, default='', help='resume training')
 
     args = parser.parse_args()
+    data_dir = args.data
     bs = args.bs
     epochs = args.epochs
     lr = args.lr
     amp = args.amp
     out_dir = args.out_dir
+    w = args.w
+    h = args.h
+    resume = args.resume
 
 
     device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
     print(f'Using device {device}')
 
-    net = Your_net()
-    print(net)
-    net.to(device)
+    REClipper = model.SEHF.REClipper(output_channels=9)
+    print(REClipper)
+    print()
+
+    SEHF = model.SEHF.SEHF()
+    print(SEHF)
+    print()
+
+    LSTM = model.SEHF.LSTM(num_layers=3)
+    print(LSTM)
+    print()
+
+    REClipper.to(device)
+    SEHF.to(device)
+    LSTM.to(device)
+
+
+
 
     # load data
-    train_dataset = dataset.MyDateset('train_path')
-    test_dataset = dataset.MyDateset('test_path')
+    train_list = []
+    test_list = []
+    for root, dirs, files in os.walk(data_dir):
+        for file in files:
+            if file.endswith('.h5'):
+                no = file.split('.')[0].split('_')[1]
+                if no not in ['5', '10', '15', '20']:
+                    train_list.append(os.path.join(root, file))
+                else:
+                    test_list.append(os.path.join(root, file))
 
-    train_dataloader = DataLoader(
-        dataset=train_dataset,
-        batch_size=bs,
-        shuffle=True,
-        num_workers=j,
-        drop_last=True,
-        pin_memory=True
-    )
-    test_dataloader = DataLoader(
-        dataset=test_dataset,
-        batch_size=bs,
-        shuffle=False,
-        num_workers=j,
-        drop_last=False,
-        pin_memory=True
-    )
+    train_dataset = pairDateset.MyDateset('train_path')
+    test_dataset = pairDateset.MyDateset('test_path')
 
-
-    """
-    pin_memory 是 PyTorch 中 DataLoader 的一个参数，用于加速数据从 CPU 到 GPU 的传输。
-
-    作用
-     加速数据传输：当 pin_memory=True 时，数据加载器会将数据存储在固定的（pinned）内存中。这种内存不会被操作系统换出，从而允许更快的异步数据拷贝到 GPU。
-
-     提升性能：在 GPU 训练时，数据通常需要从 CPU 内存复制到 GPU 内存。使用 pinned memory 可以减少这种复制的时间，尤其在大批量数据或高吞吐量场景下效果显著。
-
-    适用场景
-     GPU 训练：当使用 GPU 进行训练时，启用 pin_memory 可以提升数据加载效率。
-
-     大数据集：对于大数据集，启用 pin_memory 能减少数据加载的瓶颈。
-
-    注意事项
-     内存开销：Pinned memory 是有限的资源，过度使用可能导致内存不足。因此，仅在必要时启用。
-
-     CPU 训练：如果只在 CPU 上训练，启用 pin_memory 不会带来性能提升。
-
-    总结
-     pin_memory=True 通过使用固定的内存加速数据从 CPU 到 GPU 的传输，适合 GPU 训练和大数据集场景，但需注意内存开销。
-
-    """
+    train_loader = DataLoader(train_dataset, batch_size=1, shuffle=False, num_workers=0, pin_memory=False)
+    test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=0, pin_memory=False)
 
     scaler = None
     if amp:
@@ -145,8 +145,6 @@ def main():
     out_dir = os.path.join(out_dir, f'T{T}_b{bs}_{opt}_lr{lr}_c{channels}')
     if amp:
         out_dir += '_amp'
-    if cupy:
-        out_dir += '_cupy'
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
     

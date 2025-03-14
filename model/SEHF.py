@@ -57,10 +57,8 @@ class LSTM(nn.Module):
     
 
 class SEHF(nn.Module):
-    def __init__(self, first:bool, clipper=None):
+    def __init__(self, ):
         super().__init__()
-        self.first = first
-        self.clipper = clipper
 
         self.OnEncoder = eventEncoder(tau=10)
         self.OffEncoder = eventEncoder(tau=10)
