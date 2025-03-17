@@ -17,19 +17,6 @@ class pairDateset(Dataset):
         self.w = w
         self.h = h
     
-    def stack_data(self, t, x, y, p, interval):
-        total = len(t)
-        map = []
-        for i in range(len(p)):
-            p[i] = [np.where(element == 0, -1, element) for element in p[i]]
-        for i in range(total):
-            slice = np.zeros((self.w, self.h, interval), dtype='int8')
-            t[i] = t[i] - t[i][0]
-            for j in range(len(t[i])):
-                slice[x[i][j], y[i][j], t[i][j]] = p[i][j]
-            map.append(slice)
-        return map
-    
     def trans2ndarray(self, x, type):
         out = []
         for element in x:
@@ -68,7 +55,7 @@ class pairDateset(Dataset):
 
 
 if __name__ == '__main__':
-    path = '/mnt/d/ball_data'
+    path = 'data'
     train_list = []
     test_list = []
     for root, dirs, files in os.walk(path):

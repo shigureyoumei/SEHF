@@ -3,24 +3,52 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from spikingjelly.activation_based import functional
 import torchvision
 from torch.utils.tensorboard import SummaryWriter
 import os
 import argparse
 import time
-import datetime
 from tqdm import tqdm
 
 from dataset import *
 from torch.utils.data import DataLoader
 
 import model
+import model.SEHF
+
+from loss import HybridLoss
 
 import subprocess
 import webbrowser
 
-import model.SEHF
+import datetime as dt
+from PIL import Image
 
+import warnings
+warnings.filterwarnings("ignore", category=FutureWarning, module="torchmetrics.utilities.prints")
+
+
+def stack_data(t, x, y, p, interval, w, h):
+    slice = interval // 5
+    stack_on = []
+    stack_off = []
+    start = 0
+    end = slice
+    t = t - t[0]
+    for i in range(5):
+        stack_on.append(torch.zeros((1, slice, w, h), dtype=torch.float16))
+        stack_off.append(torch.zeros((1, slice, w, h), dtype=torch.float16))
+        p_on = torch.where(p[start:end] == 1)
+        p_off = torch.where(p[start:end] == 0)
+        for idx in p_on[0]:
+            stack_on[i][0, int(t[idx].item()), int(x[idx].item()), int(y[idx].item())] = 1.0
+        for idx in p_off[0]:
+            stack_off[i][0, int(t[idx].item()), int(x[idx].item()), int(y[idx].item())] = -1.0
+        start += slice
+        end += slice
+
+    return stack_on, stack_off
 
 
 def launch_tensorboard(logdir):
@@ -75,7 +103,7 @@ def main():
     device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
     print(f'Using device {device}')
 
-    REClipper = model.SEHF.REClipper(output_channels=9)
+    REClipper = model.SEHF.REClipper(output_channels=7)
     print(REClipper)
     print()
 
@@ -106,8 +134,8 @@ def main():
                 else:
                     test_list.append(os.path.join(root, file))
 
-    train_dataset = pairDateset.MyDateset('train_path')
-    test_dataset = pairDateset.MyDateset('test_path')
+    train_dataset = pairDateset(train_list, w, h)
+    test_dataset = pairDateset(test_list, w, h)
 
     train_loader = DataLoader(train_dataset, batch_size=1, shuffle=False, num_workers=0, pin_memory=False)
     test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=0, pin_memory=False)
@@ -117,32 +145,29 @@ def main():
         scaler = torch.GradScaler("cuda:0")
 
     start_epoch = 0
-    max_test_acc = -1
-
-    optimizer = None
-    if len(opt) > 0:
-        if opt == 'adam':
-            optimizer = torch.optim.Adam(net.parameters(), lr=lr)
-        elif opt == 'sgd':
-            optimizer = torch.optim.SGD(net.parameters(), lr=lr, momentum=momentum)
-        else:
-            raise ValueError('Invalid optimizer')
-    
-    lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, epochs)
-    # Learning Rate Scheduler可以根据epoch的数量来调整学习率，这里是余弦退火调度器，学习率随着epoch而进行余弦变化
-
+    lowest_test_loss = 1e10
+    best_epoch = -1
+    optimizer = torch.optim.Adam(list(SEHF.parameters())+list(REClipper.parameters())+list(LSTM.parameters()), lr=lr)
+    hybrid_loss = HybridLoss(lambda_mse=1.0, lambda_ssim=0.5, lambda_lpips=0.2)
 
     # whether to resume training
     if len(resume) > 0:
         checkpoint = torch.load(resume, map_location='cpu') # 先加载模型到cpu上，等需要的时候再加载到gpu
-        net.load_state_dict(checkpoint['net'])
+        REClipper.load_state_dict(checkpoint['REClipper'])
+        SEHF.load_state_dict(checkpoint['SEHF'])
+        LSTM.load_state_dict(checkpoint['LSTM'])
         optimizer.load_state_dict(checkpoint['optimizer'])
         start_epoch = checkpoint['epoch'] + 1
-        max_test_acc = checkpoint['max_test_acc']
-        lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
+        lowest_test_loss = checkpoint['max_test_acc']
+        best_epoch = checkpoint['best_epoch']
+
         
 
-    out_dir = os.path.join(out_dir, f'T{T}_b{bs}_{opt}_lr{lr}_c{channels}')
+    now = dt.datetime.now()
+    year = now.year
+    month = now.month
+    day = now.day
+    out_dir = os.path.join(out_dir, f'{year}_{month}_{day}_b{bs}_lr{lr}')
     if amp:
         out_dir += '_amp'
     if not os.path.exists(out_dir):
@@ -151,92 +176,188 @@ def main():
     writer = SummaryWriter(out_dir, purge_step=start_epoch)
     with open(os.path.join(out_dir, 'args.txt'), 'w', encoding='utf-8') as args_txt:
         args_txt.write(str(args))
+
+
+    sample_check = os.path.join(out_dir, 'sample_check')
+    if not os.path.exists(sample_check):
+        os.makedirs(sample_check)
     
 
     # training part
     for epoch in tqdm(range(start_epoch, epochs), desc='Epoch', total=(epochs-start_epoch)):
         starttime = time.time()
-        net.train()
+        REClipper.train()
+        SEHF.train()
+        LSTM.train()
         train_loss = 0
-        train_acc = 0
-        train_samples = 0
-        for img, label in tqdm(train_dataloader, desc='Train dataLoader', total=len(train_dataloader)):
-            optimizer.zero_grad()
-            img = img.to(device)
-            label = label.to(device)
-            label_one_hot = F.one_hot(label, 10).float()
+        
+        for event_total, rgb_total in tqdm(train_loader, desc='Train dataLoader', total=len(train_loader)):
 
-            if scaler is not None:
-                with torch.autocast("cuda:0"):
-                    out = net(img)
-                    loss = F.mse_loss(out, label_one_hot)
-                scaler.scale(loss).backward()
-                scaler.step(optimizer)
-                scaler.update()
-            else:
-                out = net(img)
-                loss = F.mse_loss(out, label_one_hot)
-                loss.backward()
-                optimizer.step()
-            
-            train_samples += label.numel()
-            train_loss += loss.item() * label.numel()
-            train_acc += (out.argmax(dim=1) == label).sum().item()
+            train_sample = 0
+
+            rgb_1 = None
+            stack_on_1 = None
+            stack_off_1 = None
+            pic_idx = 0
+
+            for i in range(rgb_total.shape[1]):
+                rgb = rgb_total[:, i, :, :, :] # torch[1,448,280,3]
+                t = event_total['t'][i][0].to(torch.float32) # torch[5863]
+                x = event_total['x'][i][0].to(torch.float32)
+                y = event_total['y'][i][0].to(torch.float32)
+                p = event_total['p'][i][0].to(torch.float32)
+                stack_on, stack_off = stack_data(t, x, y, p, 2015, w, h) # torch[1,448,280,2015]
+                rgb = rgb.to(torch.float16)    #1*280*448*3
+                rgb = rgb.permute(0, 3, 2, 1)   #1*3*448*280
+                stack_on = [s.transpose(0, 1) for s in stack_on] #403*1*448*280
+                stack_off = [s.transpose(0, 1) for s in stack_off] #403*1*448*280
+                # stack_on = stack_on.to(device)  
+                # stack_off = stack_off.to(device)  
+
+                if i == 0:
+                    rgb_1 = rgb
+                    stack_on_1 = stack_on
+                    stack_off_1 = stack_off
+                    rgb_1 = rgb_1.to(device)
+                    stack_on_1 = [s.to(device) for s in stack_on_1]
+                    stack_off_1 = [s.to(device) for s in stack_off_1]
+                    lstm_out = None
+                    hidden = None
+                    continue
+                else:
+                    optimizer.zero_grad()
+                    rgb = rgb.to(device)
+                    stack_on = [s.to(device) for s in stack_on]
+                    stack_off = [s.to(device) for s in stack_off]
+
+                    if scaler is not None:
+                        with torch.autocast("cuda:0"):
+                            clipper = REClipper(stack_on_1, stack_off_1, rgb_1, device)  #1*7*448*280
+                            out = SEHF(stack_on, stack_off, lstm_out, clipper, device)
+                            lstm_out, hidden = LSTM(out, hidden)
+                            loss = hybrid_loss(out, rgb)
+                        lstm_out = lstm_out.detach()
+                        if hidden is not None:
+                            hidden = tuple(h.detach() for h in hidden)
+                        scaler.scale(loss).backward()
+                        scaler.step(optimizer)
+                        scaler.update()
+                        train_sample += 1
+                        train_loss += loss.item()
+                        if i == rgb_total.shape[1] - 1:
+                            save_result = out.detach().cpu().squeeze(0).numpy().astype(np.uint8)
+                            save_result = save_result.transpose(2, 1, 0)
+                            # save_result = save_result[:, :, [2, 1, 0]]  # 将 BGR 转换为 RGB
+                            sample = Image.fromarray(save_result)
+                            sample.save(os.path.join(sample_check, f'{epoch}_{pic_idx}.png'))
+                            pic_idx += 1
+                        functional.reset_net(REClipper)
+                        functional.reset_net(SEHF)
+                    else:
+                        clipper = REClipper(stack_on_1, stack_off_1, rgb_1)
+                        out = SEHF(stack_on, stack_off, lstm_out, clipper)
+                        lstm_out, hidden = LSTM(out, hidden)
+                        loss = hybrid_loss(out, rgb)
+                        lstm_out = lstm_out.detach()
+                        if hidden is not None:
+                            hidden = tuple(h.detach() for h in hidden)
+                        train_sample += 1
+                        loss.backward()
+                        optimizer.step()
+                        train_loss += loss.item()
+                        if i == rgb_total.shape[1] - 1:
+                            save_result = out.detach().cpu().squeeze(0).numpy().astype(np.uint8)
+                            save_result = save_result.transpose(2, 1, 0)
+                            # save_result = save_result[:, :, [2, 1, 0]]  # 将 BGR 转换为 RGB
+                            sample = Image.fromarray(save_result)
+                            sample.save(os.path.join(sample_check, f'{epoch}_{pic_idx}.png'))
+                            pic_idx += 1
+                        functional.reset_net(REClipper)
+                        functional.reset_net(SEHF)
+
+                    # del rgb, stack_on, stack_off
+                    # torch.cuda.empty_cache()
 
 
-        train_time = time.time()
-        train_speed = train_samples / (train_time - starttime)
-        train_loss /= train_samples
-        train_acc /= train_samples
 
-        writer.add_scalar('train_loss', train_loss, epoch)
-        writer.add_scalar('train_acc', train_acc, epoch)
+            train_time = time.time()
+            avg_train_loss = train_loss / train_sample
+            writer.add_scalar('train_loss', avg_train_loss, epoch)
 
-        lr_scheduler.step()
 
-        net.eval()
+
+        REClipper.eval()
+        SEHF.eval()
+        LSTM.eval()
         test_loss = 0
-        test_acc = 0
-        test_samples = 0
         with torch.no_grad():
-            for img, label in test_dataloader:
-                img = img.to(device)
-                label = label.to(device)
-                label_one_hot = F.one_hot(label, 10).float()
-                out = net(img)
-                loss = F.mse_loss(out, label_one_hot)
-                test_samples += label.numel()
-                test_loss += loss.item() * label.numel()
-                test_acc += (out.argmax(dim=1) == label).sum().item()
-                functional.reset_net(net)
+            for rgb_total, event_total in test_loader:
+                for i in range(rgb_total.shape[1]):
+                    rgb = rgb_total[:, i, :, :, :] # torch[1,448,280,3]
+                    t = event_total['t'][i][0].to(torch.float32) # torch[5863]
+                    x = event_total['x'][i][0].to(torch.float32)
+                    y = event_total['y'][i][0].to(torch.float32)
+                    p = event_total['p'][i][0].to(torch.float32)
+                    stack_on, stack_off = stack_data(t, x, y, p, 2015, w, h) # torch[1,448,280,2015]
+                    rgb = rgb.to(torch.float16)    #1*280*448*3
+                    rgb = rgb.permute(0, 3, 2, 1)   #1*3*448*280
+                    stack_on = [s.transpose(0, 1) for s in stack_on] #403*1*448*280
+                    stack_off = [s.transpose(0, 1) for s in stack_off] #403*1*448*280
+                    # stack_on = stack_on.to(device)  
+                    # stack_off = stack_off.to(device)  
+                if i == 0:
+                    rgb_1 = rgb
+                    stack_on_1 = stack_on
+                    stack_off_1 = stack_off
+                    rgb_1 = rgb_1.to(device)
+                    stack_on_1 = [s.to(device) for s in stack_on_1]
+                    stack_off_1 = [s.to(device) for s in stack_off_1]
+                    lstm_out = None
+                    hidden = None
+                    continue
+                else:
+                    rgb = rgb.to(device)
+                    stack_on = [s.to(device) for s in stack_on]
+                    stack_off = [s.to(device) for s in stack_off]
+                    clipper = REClipper(stack_on, stack_off, rgb)
+                    out = SEHF(stack_on, stack_off, lstm_out, clipper)
+                    lstm_out, hidden = LSTM(out, hidden)
+                    loss = hybrid_loss(out, rgb)
+                    test_loss += loss.item()
+                    functional.reset_net(REClipper)
+                    functional.reset_net(SEHF)
+
+                    # del rgb, stack_on, stack_off
+                    # torch.cuda.empty_cache()
+
         test_time = time.time()
-        test_speed = test_samples / (test_time - train_time)
-        test_loss /= test_samples
-        test_acc /= test_samples
+
 
         writer.add_scalar('test_loss', test_loss, epoch)
-        writer.add_scalar('test_acc', test_acc, epoch)
 
-        save_max = False
-        if test_acc > max_test_acc:
-            max_test_acc = test_acc
-            save_max = True
+        save_best = False
+        if test_loss < lowest_test_loss:
+            lowest_test_loss = test_loss
+            best_epoch = epoch
+            save_best = True
 
         checkpoint = {
-            'net': net.state_dict(),
+            'REClipper': REClipper.state_dict(),
+            'SEHF': SEHF.state_dict(),
+            'LSTM': LSTM.state_dict(),
             'optimizer': optimizer.state_dict(),
             'epoch': epoch,
-            'max_test_acc': max_test_acc,
-            'lr_scheduler': lr_scheduler.state_dict()
+            'lowest_test_loss': test_loss,
+            'best_epoch': best_epoch
         }
 
-        if save_max:
-            torch.save(checkpoint, os.path.join(out_dir, 'max.pth'))
+        if save_best:
+            torch.save(checkpoint, os.path.join(out_dir, 'best.pth'))
 
         torch.save(checkpoint, os.path.join(out_dir, 'last.pth'))
 
-        print(f'epoch = {epoch}, train_loss ={train_loss: .4f}, train_acc ={train_acc: .4f}, test_loss ={test_loss: .4f}, test_acc ={test_acc: .4f}, max_test_acc ={max_test_acc: .4f}')
-        print(f'escape time = {(datetime.datetime.now() + datetime.timedelta(seconds=(time.time() - starttime) * (epochs - epoch))).strftime("%Y-%m-%d %H:%M:%S")}\n')
+        print(f'epoch = {epoch}, train_loss ={avg_train_loss: .4f}, test_loss ={test_loss: .4f}, epoch_span ={(test_time-starttime)//60}min{(test_time-starttime)%60}s, train_time ={(train_time-starttime)//60}min{(train_time-starttime)%60}s, lowest_test_loss ={lowest_test_loss: .4f}_epoch({best_epoch})')
+        print(f'escape time = {(dt.datetime.now() + dt.timedelta(seconds=(time.time() - starttime) * (epochs - epoch))).strftime("%Y-%m-%d %H:%M:%S")}\n')
 
     # show result in tensorboard
     tensorboard_process = launch_tensorboard(out_dir)

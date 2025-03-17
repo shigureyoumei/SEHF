@@ -72,11 +72,11 @@ class OutConv(nn.Module):
     
 
 class Generator(nn.Module):
-    def __init__(self, n_channels, bilinear=True):
+    def __init__(self, n_channels, bilinear=True): # n_channels=32
         super().__init__()
         self.n_channels = n_channels # 输入通道数
         self.bilinear = bilinear # 上采样方式
-        self.inc = DoubleConv(n_channels, 32) 
+        self.inc = DoubleConv(n_channels, 32)  # n_channels=4
         self.down1 = Down(64, 64)   # 64*224*140 原本应是(64, 128)
         self.down2 = Down(128, 128) # 128*112*70 原本应是(128, 256)
         self.down3 = Down(256, 256) # 256*56*35 原本应是(256, 512)
@@ -103,10 +103,9 @@ class Generator(nn.Module):
             nn.MaxPool2d(2)
         )
  
-    def forward(self, x, prompt): # prompt: 32*448*280, x: 4*448*280
-        x1 = self.inc(x) # 一开始输入 32*448*280
-        x1 = torch.cat([x1, prompt], dim=1) # 32+32=64*448*280
-
+    def forward(self, x, prompt): # prompt: 32*448*280, x: 32*448*280
+        x1 = self.inc(x) #  32*448*280
+        x1 = torch.cat([x1, prompt], dim=1) # 32+32=64*448*280  
 
         # 四层左部分
         x2 = self.down1(x1) # 64*224*140
