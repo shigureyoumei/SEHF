@@ -11,10 +11,9 @@ class ClipperEventEncoder(nn.Module):  #input : 2015 * 448 * 280
         self.tau = tau
         self.snn = nn.Sequential(
             neuron.LIFNode(tau=tau, surrogate_function=surrogate.ATan()), # tau越大衰减越慢
-            layer.Conv2d(in_channels=1, out_channels=4, kernel_size=3, stride=1, padding=1, bias=False),
+            layer.Conv2d(in_channels=1, out_channels=1, kernel_size=3, stride=1, padding=1, bias=False),
             nn.ReLU(),
-            layer.Conv2d(in_channels=4, out_channels=1, kernel_size=3, stride=1, padding=1, bias=False),
-            nn.ReLU(),
+            
         )
 
         functional.set_step_mode(self, step_mode='s'),
@@ -42,9 +41,7 @@ class eventEncoder(nn.Module):  #input : 2015 * 448 * 280
         self.tau = tau
         self.snn = nn.Sequential(
             neuron.LIFNode(tau=tau, surrogate_function=surrogate.ATan()), # tau越大衰减越慢
-            layer.Conv2d(in_channels=1, out_channels=4, kernel_size=3, stride=1, padding=1, bias=False),
-            nn.ReLU(),
-            layer.Conv2d(in_channels=4, out_channels=1, kernel_size=3, stride=1, padding=1, bias=False),
+            layer.Conv2d(in_channels=1, out_channels=1, kernel_size=3, stride=1, padding=1, bias=False),
             nn.ReLU(),
         )
 
@@ -69,8 +66,9 @@ class eventEncoder(nn.Module):  #input : 2015 * 448 * 280
 class REClipper(nn.Module):
     def __init__(self, output_channels:int):
         super().__init__()
-        self.OnEncoder = ClipperEventEncoder(tau=10.0)
-        self.OffEncoder = ClipperEventEncoder(tau=10.0)
+        self.magnifier = torch.nn.Parameter(torch.tensor(20.0), requires_grad=True)
+        self.OnEncoder = ClipperEventEncoder(tau=100.0)
+        self.OffEncoder = ClipperEventEncoder(tau=100.0)
         self.clipper = nn.Sequential(
             nn.Conv2d(in_channels=5, out_channels=16, kernel_size=3, stride=1, padding=1),
             nn.ReLU(),
@@ -96,6 +94,8 @@ class REClipper(nn.Module):
         Off = Off.mean(0)
         On = On.unsqueeze(0)
         Off = Off.unsqueeze(0)
+        On = self.magnifier * On
+        Off = self.magnifier * Off
         x = torch.cat([On, Off, rgb], dim=1)
         x = self.clipper(x)
         functional.reset_net(self.OnEncoder)
@@ -134,8 +134,9 @@ class SEHF(nn.Module):
     def __init__(self, ):
         super().__init__()
 
-        self.OnEncoder = eventEncoder(tau=10.0)
-        self.OffEncoder = eventEncoder(tau=10.0)
+        self.magnifier = torch.nn.Parameter(torch.tensor(20.0), requires_grad=True)
+        self.OnEncoder = eventEncoder(tau=100.0)
+        self.OffEncoder = eventEncoder(tau=100.0)
         self.conv1 = nn.Sequential(
             nn.Conv2d(in_channels=2, out_channels=4, kernel_size=3, stride=1, padding=1),
             nn.ReLU(),
@@ -171,6 +172,8 @@ class SEHF(nn.Module):
         Off = torch.cat(Off, dim=0)
         On = On.mean(0).unsqueeze(0) # 1*1*448*280
         Off = Off.mean(0).unsqueeze(0)    # 1*1*448*280
+        On = self.magnifier * On
+        Off = self.magnifier * Off
         x = torch.cat([On, Off], dim=1)  #1*2*448*280
         x = self.conv1(x)    # 4*448*280
 

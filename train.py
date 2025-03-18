@@ -195,12 +195,15 @@ def main():
         REClipper.train()
         SEHF.train()
         LSTM.train()
-        train_loss = 0
-        pic_idx = 0
-        
+        total_train_loss = 0
+        train_pic_idx = 0
+        train_patch_iter = 0
+
         for event_total, rgb_total in tqdm(train_loader, desc='Train dataLoader', total=len(train_loader)):
 
             train_sample = 0
+            train_loss = 0
+            avg_train_loss = 0
 
             rgb_1 = None
             stack_on_1 = None
@@ -256,8 +259,8 @@ def main():
                             save_result = save_result.transpose(2, 1, 0)
                             save_result = save_result[:, :, [2, 1, 0]]  # 将 BGR 转换为 RGB
                             sample = Image.fromarray(save_result)
-                            sample.save(os.path.join(sample_check, f'{epoch}_{pic_idx}.png'))
-                            pic_idx += 1
+                            sample.save(os.path.join(sample_check, f'{epoch}_{train_pic_idx}_train.png'))
+                            train_pic_idx += 1
                         functional.reset_net(REClipper)
                         functional.reset_net(SEHF)
                     else:
@@ -277,8 +280,8 @@ def main():
                             save_result = save_result.transpose(2, 1, 0)
                             save_result = save_result[:, :, [2, 1, 0]]  # 将 BGR 转换为 RGB
                             sample = Image.fromarray(save_result)
-                            sample.save(os.path.join(sample_check, f'{epoch}_{pic_idx}.png'))
-                            pic_idx += 1
+                            sample.save(os.path.join(sample_check, f'{epoch}_{train_pic_idx}_train.png'))
+                            train_pic_idx += 1
                         functional.reset_net(REClipper)
                         functional.reset_net(SEHF)
 
@@ -289,16 +292,32 @@ def main():
 
             train_time = time.time()
             avg_train_loss = train_loss / train_sample
-            writer.add_scalar('train_loss', avg_train_loss, epoch)
+            train_patch_iter += 1
+            total_train_loss += avg_train_loss
+            # writer.add_scalar('train_loss', avg_train_loss, epoch)
+
+        
+        ulti_train_loss = total_train_loss / train_patch_iter
+        writer.add_scalar('train_loss', ulti_train_loss, epoch)
 
 
 
         REClipper.eval()
         SEHF.eval()
         LSTM.eval()
-        test_loss = 0
+        total_test_loss = 0
+        test_pic_idx = 0
+        test_patch_iter = 0
         with torch.no_grad():
             for rgb_total, event_total in test_loader:
+                test_sample = 0
+                test_loss = 0
+                avg_test_loss = 0
+
+                rgb_1 = None
+                stack_on_1 = None
+                stack_off_1 = None
+
                 for i in range(rgb_total.shape[1]):
                     rgb = rgb_total[:, i, :, :, :] # torch[1,448,280,3]
                     t = event_total['t'][i][0].to(torch.float32) # torch[5863]
@@ -331,16 +350,27 @@ def main():
                     lstm_out, hidden = LSTM(out, hidden)
                     loss = hybrid_loss(out, rgb)
                     test_loss += loss.item()
+                    if i == rgb_total.shape[1] - 1:
+                            save_result = out.detach().cpu().squeeze(0).numpy().astype(np.uint8)
+                            save_result = save_result.transpose(2, 1, 0)
+                            save_result = save_result[:, :, [2, 1, 0]]  # 将 BGR 转换为 RGB
+                            sample = Image.fromarray(save_result)
+                            sample.save(os.path.join(sample_check, f'{epoch}_{test_pic_idx}_test.png'))
+                            test_pic_idx += 1
                     functional.reset_net(REClipper)
                     functional.reset_net(SEHF)
 
                     # del rgb, stack_on, stack_off
                     # torch.cuda.empty_cache()
+                test_patch_iter += 1
+                avg_test_loss = test_loss / test_sample
+                total_test_loss += avg_test_loss
+
 
         test_time = time.time()
 
-
-        writer.add_scalar('test_loss', test_loss, epoch)
+        ulti_test_loss = total_test_loss / test_patch_iter
+        writer.add_scalar('test_loss', ulti_test_loss, epoch)
 
         save_best = False
         if test_loss < lowest_test_loss:
