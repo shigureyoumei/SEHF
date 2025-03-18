@@ -4,7 +4,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from spikingjelly.activation_based import functional
-import torchvision
 from torch.utils.tensorboard import SummaryWriter
 import os
 import argparse
@@ -39,12 +38,19 @@ def stack_data(t, x, y, p, interval, w, h):
     for i in range(5):
         stack_on.append(torch.zeros((1, slice, w, h), dtype=torch.float16))
         stack_off.append(torch.zeros((1, slice, w, h), dtype=torch.float16))
-        p_on = torch.where(p[start:end] == 1)
-        p_off = torch.where(p[start:end] == 0)
+
+        mask = (t >= start) & (t < end)
+        t_slice = t[mask]
+        p_slice = p[mask]
+
+        t_slice = t_slice - t_slice[0]
+        
+        p_on = torch.where(p_slice == 1)
+        p_off = torch.where(p_slice == 0)
         for idx in p_on[0]:
-            stack_on[i][0, int(t[idx].item()), int(x[idx].item()), int(y[idx].item())] = 1.0
+            stack_on[i][0, int(t_slice[idx].item()), int(x[idx].item()), int(y[idx].item())] = 1.0
         for idx in p_off[0]:
-            stack_off[i][0, int(t[idx].item()), int(x[idx].item()), int(y[idx].item())] = -1.0
+            stack_off[i][0, int(t_slice[idx].item()), int(x[idx].item()), int(y[idx].item())] = -1.0
         start += slice
         end += slice
 
@@ -190,6 +196,7 @@ def main():
         SEHF.train()
         LSTM.train()
         train_loss = 0
+        pic_idx = 0
         
         for event_total, rgb_total in tqdm(train_loader, desc='Train dataLoader', total=len(train_loader)):
 
@@ -198,9 +205,9 @@ def main():
             rgb_1 = None
             stack_on_1 = None
             stack_off_1 = None
-            pic_idx = 0
+            
 
-            for i in range(rgb_total.shape[1]):
+            for i in tqdm(range(rgb_total.shape[1]), desc='training frame', total=rgb_total.shape[1]):
                 rgb = rgb_total[:, i, :, :, :] # torch[1,448,280,3]
                 t = event_total['t'][i][0].to(torch.float32) # torch[5863]
                 x = event_total['x'][i][0].to(torch.float32)
@@ -247,7 +254,7 @@ def main():
                         if i == rgb_total.shape[1] - 1:
                             save_result = out.detach().cpu().squeeze(0).numpy().astype(np.uint8)
                             save_result = save_result.transpose(2, 1, 0)
-                            # save_result = save_result[:, :, [2, 1, 0]]  # 将 BGR 转换为 RGB
+                            save_result = save_result[:, :, [2, 1, 0]]  # 将 BGR 转换为 RGB
                             sample = Image.fromarray(save_result)
                             sample.save(os.path.join(sample_check, f'{epoch}_{pic_idx}.png'))
                             pic_idx += 1
@@ -268,7 +275,7 @@ def main():
                         if i == rgb_total.shape[1] - 1:
                             save_result = out.detach().cpu().squeeze(0).numpy().astype(np.uint8)
                             save_result = save_result.transpose(2, 1, 0)
-                            # save_result = save_result[:, :, [2, 1, 0]]  # 将 BGR 转换为 RGB
+                            save_result = save_result[:, :, [2, 1, 0]]  # 将 BGR 转换为 RGB
                             sample = Image.fromarray(save_result)
                             sample.save(os.path.join(sample_check, f'{epoch}_{pic_idx}.png'))
                             pic_idx += 1
