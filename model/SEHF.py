@@ -10,29 +10,34 @@ class ClipperEventEncoder(nn.Module):  #input : 2015 * 448 * 280
         super().__init__()
         self.tau = tau
         self.snn = nn.Sequential(
-            neuron.LIFNode(tau=tau, surrogate_function=surrogate.ATan()), # tau越大衰减越慢
-            layer.Conv2d(in_channels=1, out_channels=1, kernel_size=3, stride=1, padding=1, bias=False),
-            nn.ReLU(),
-            
+            neuron.LIFNode(tau=self.tau, surrogate_function=surrogate.ATan(), v_threshold=0.1), # tau越大衰减越慢
+            layer.Conv2d(in_channels=1, out_channels=2, kernel_size=3, stride=1, padding=1, bias=False),
+            layer.Conv2d(in_channels=2, out_channels=1, kernel_size=3, stride=1, padding=1, bias=False),
         )
 
         functional.set_step_mode(self, step_mode='s'),
 
-    def forward(self, x_seq): # 403*1*448*280
+    def forward(self, x_seq): # 2015*1*448*280
         # x_seq = x_seq.transpose(0, 1)  # 403*1**448*280
-        x_seq = x_seq.unsqueeze(1)  # 403*1*1*448*280
-        T = x_seq.shape[0]
-        y_seq = []
-        for t in range(T):
-            x = x_seq[t]
-            x = self.snn(x)
-            y_seq.append(x)
-            del x
-            torch.cuda.empty_cache()
-        y = torch.cat(y_seq)  # 403*1*448*280
-        del y_seq
-        y = y.mean(0)  # 1*448*280
-        return y
+        # x_seq = x_seq.unsqueeze(1)  # 2015*1*1*448*280
+        # T = x_seq.shape[0]
+        # y_seq = []
+        # for t in range(T):
+        #     x = x_seq[t]
+
+        #     for i, layer in enumerate(self.snn):
+        #         x = layer(x)
+
+        x = self.snn(x_seq)
+        # y_seq.append(x)
+            # del x
+            # torch.cuda.empty_cache()
+        # y = torch.cat(y_seq)  # 2015*1*448*280
+        # del y_seq
+        # y = y.mean(0)  # 1*448*280
+
+        x = x.mean(0)  # 1*448*280
+        return x
     
 
 class eventEncoder(nn.Module):  #input : 2015 * 448 * 280
@@ -40,9 +45,9 @@ class eventEncoder(nn.Module):  #input : 2015 * 448 * 280
         super().__init__()
         self.tau = tau
         self.snn = nn.Sequential(
-            neuron.LIFNode(tau=tau, surrogate_function=surrogate.ATan()), # tau越大衰减越慢
-            layer.Conv2d(in_channels=1, out_channels=1, kernel_size=3, stride=1, padding=1, bias=False),
-            nn.ReLU(),
+            neuron.LIFNode(tau=self.tau, surrogate_function=surrogate.ATan(), v_threshold=0.1), # tau越大衰减越慢
+            layer.Conv2d(in_channels=1, out_channels=2, kernel_size=3, stride=1, padding=1, bias=False),
+            layer.Conv2d(in_channels=2, out_channels=1, kernel_size=3, stride=1, padding=1, bias=False),
         )
 
         functional.set_step_mode(self, step_mode='s'),
@@ -66,9 +71,10 @@ class eventEncoder(nn.Module):  #input : 2015 * 448 * 280
 class REClipper(nn.Module):
     def __init__(self, output_channels:int):
         super().__init__()
-        self.magnifier = torch.nn.Parameter(torch.tensor(20.0), requires_grad=True)
-        self.OnEncoder = ClipperEventEncoder(tau=100.0)
-        self.OffEncoder = ClipperEventEncoder(tau=100.0)
+        self.magnifier = torch.nn.Parameter(torch.tensor(20000.0), requires_grad=True)
+        
+        self.OnEncoder = ClipperEventEncoder(tau=5.0)
+        self.OffEncoder = ClipperEventEncoder(tau=5.0)
         self.clipper = nn.Sequential(
             nn.Conv2d(in_channels=5, out_channels=16, kernel_size=3, stride=1, padding=1),
             nn.ReLU(),
@@ -77,21 +83,26 @@ class REClipper(nn.Module):
         )
 
     def forward(self, On_event, Off_event, rgb, device):
-        On = []
-        Off = []
-        for i in range(len(On_event)):
-            On_event_s = On_event[i]  # 403*1*448*280
-            Off_event_s = Off_event[i]  # 403*1*448*280
-            On_s = self.OnEncoder(On_event_s) # 1*448*280
-            Off_s = self.OffEncoder(Off_event_s) # 1*448*280
-            On.append(On_s.unsqueeze(0))
-            Off.append(Off_s.unsqueeze(0))
+        # On = []
+        # Off = []
+        # for i in range(len(On_event)):
+        #     On_event_s = On_event[i]  # 403*1*448*280
+        #     Off_event_s = Off_event[i]  # 403*1*448*280
+        #     On_s = self.OnEncoder(On_event_s) # 1*448*280
+        #     Off_s = self.OffEncoder(Off_event_s) # 1*448*280
+        #     On.append(On_s.unsqueeze(0))
+        #     Off.append(Off_s.unsqueeze(0))
             
     
-        On = torch.cat(On, dim=0)   #5*1*448*280
-        Off = torch.cat(Off, dim=0)
-        On = On.mean(0)  # 1*448*280
-        Off = Off.mean(0)
+        # On = torch.cat(On, dim=0)   #5*1*448*280
+        # Off = torch.cat(Off, dim=0)
+        # On = On.mean(0)  # 1*448*280
+        # Off = Off.mean(0)
+
+        On = self.OnEncoder(On_event) # 1*448*280
+        Off = self.OffEncoder(Off_event) # 1*448*280
+
+
         On = On.unsqueeze(0)
         Off = Off.unsqueeze(0)
         On = self.magnifier * On
@@ -134,9 +145,9 @@ class SEHF(nn.Module):
     def __init__(self, ):
         super().__init__()
 
-        self.magnifier = torch.nn.Parameter(torch.tensor(20.0), requires_grad=True)
-        self.OnEncoder = eventEncoder(tau=100.0)
-        self.OffEncoder = eventEncoder(tau=100.0)
+        self.magnifier = torch.nn.Parameter(torch.tensor(20000.0), requires_grad=True)
+        self.OnEncoder = eventEncoder(tau=5.0)
+        self.OffEncoder = eventEncoder(tau=5.0)
         self.conv1 = nn.Sequential(
             nn.Conv2d(in_channels=2, out_channels=4, kernel_size=3, stride=1, padding=1),
             nn.ReLU(),
@@ -154,24 +165,28 @@ class SEHF(nn.Module):
         
 
     def forward(self, On_event, Off_event, lstm_output, clipper, device):
-        On = []
-        Off = []
-        for i in range(len(On_event)):
-            On_event_s = On_event[i].to(device, dtype=torch.float16)  # 403*1*448*280
-            Off_event_s = Off_event[i].to(device, dtype=torch.float16)  # 403*1*448*280
+        # On = []
+        # Off = []
+        # for i in range(len(On_event)):
+        #     On_event_s = On_event[i].to(device, dtype=torch.float16)  # 403*1*448*280
+        #     Off_event_s = Off_event[i].to(device, dtype=torch.float16)  # 403*1*448*280
             
-            On_s = self.OnEncoder(On_event_s) # 1*448*280
-            Off_s = self.OffEncoder(Off_event_s) # 1*448*280
-            On.append(On_s.unsqueeze(0))
-            Off.append(Off_s.unsqueeze(0))
-            # del On_event_s, Off_event_s, On_s, Off_s
-            # torch.cuda.empty_cache()
-        functional.reset_net(self.OnEncoder)
-        functional.reset_net(self.OffEncoder)
-        On = torch.cat(On, dim=0)   #5*1*448*280
-        Off = torch.cat(Off, dim=0)
-        On = On.mean(0).unsqueeze(0) # 1*1*448*280
-        Off = Off.mean(0).unsqueeze(0)    # 1*1*448*280
+        #     On_s = self.OnEncoder(On_event_s) # 1*448*280
+        #     Off_s = self.OffEncoder(Off_event_s) # 1*448*280
+        #     On.append(On_s.unsqueeze(0))
+        #     Off.append(Off_s.unsqueeze(0))
+        #     # del On_event_s, Off_event_s, On_s, Off_s
+        #     # torch.cuda.empty_cache()
+        # functional.reset_net(self.OnEncoder)
+        # functional.reset_net(self.OffEncoder)
+        # On = torch.cat(On, dim=0)   #5*1*448*280
+        # Off = torch.cat(Off, dim=0)
+        # On = On.mean(0).unsqueeze(0) # 1*1*448*280
+        # Off = Off.mean(0).unsqueeze(0)    # 1*1*448*280
+        On = self.OnEncoder(On_event) # 1*448*280
+        Off = self.OffEncoder(Off_event) # 1*448*280
+        On = On.unsqueeze(0)
+        Off = Off.unsqueeze(0)
         On = self.magnifier * On
         Off = self.magnifier * Off
         x = torch.cat([On, Off], dim=1)  #1*2*448*280

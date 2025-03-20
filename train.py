@@ -29,30 +29,41 @@ warnings.filterwarnings("ignore", category=FutureWarning, module="torchmetrics.u
 
 
 def stack_data(t, x, y, p, interval, w, h):
-    slice = interval // 5
-    stack_on = []
-    stack_off = []
-    start = 0
-    end = slice
-    t = t - t[0]
-    for i in range(5):
-        stack_on.append(torch.zeros((1, slice, w, h), dtype=torch.float16))
-        stack_off.append(torch.zeros((1, slice, w, h), dtype=torch.float16))
+    # slice = interval // 5
+    # stack_on = []
+    # stack_off = []
+    # start = 0
+    # end = slice
+    # t = t - t[0]
+    # for i in range(5):
+    #     stack_on.append(torch.zeros((1, slice, w, h), dtype=torch.float16))
+    #     stack_off.append(torch.zeros((1, slice, w, h), dtype=torch.float16))
 
-        mask = (t >= start) & (t < end)
-        t_slice = t[mask]
-        p_slice = p[mask]
+    #     mask = (t >= start) & (t < end)
+    #     t_slice = t[mask]
+    #     p_slice = p[mask]
 
-        t_slice = t_slice - t_slice[0]
+    #     t_slice = t_slice - t_slice[0]
         
-        p_on = torch.where(p_slice == 1)
-        p_off = torch.where(p_slice == 0)
-        for idx in p_on[0]:
-            stack_on[i][0, int(t_slice[idx].item()), int(x[idx].item()), int(y[idx].item())] = 1.0
-        for idx in p_off[0]:
-            stack_off[i][0, int(t_slice[idx].item()), int(x[idx].item()), int(y[idx].item())] = -1.0
-        start += slice
-        end += slice
+    #     p_on = torch.where(p_slice == 1)
+    #     p_off = torch.where(p_slice == 0)
+    #     for idx in p_on[0]:
+    #         stack_on[i][0, int(t_slice[idx].item()), int(x[idx].item()), int(y[idx].item())] = 1.0
+    #     for idx in p_off[0]:
+    #         stack_off[i][0, int(t_slice[idx].item()), int(x[idx].item()), int(y[idx].item())] = 1.0
+    #     start += slice
+    #     end += slice
+
+
+    t = t - t[0]
+    stack_on = torch.zeros((1, interval, w, h), dtype=torch.float16)
+    stack_off = torch.zeros((1, interval, w, h), dtype=torch.float16)
+    p_on = torch.where(p == 1)
+    p_off = torch.where(p == 0)
+    for idx in p_on[0]:
+        stack_on[0, int(t[idx].item()), int(x[idx].item()), int(y[idx].item())] = 1.0
+    for idx in p_off[0]:
+        stack_off[0, int(t[idx].item()), int(x[idx].item()), int(y[idx].item())] = 1.0
 
     return stack_on, stack_off
 
@@ -212,40 +223,58 @@ def main():
 
             for i in tqdm(range(rgb_total.shape[1]), desc='training frame', total=rgb_total.shape[1]):
                 rgb = rgb_total[:, i, :, :, :] # torch[1,448,280,3]
-                t = event_total['t'][i][0].to(torch.float32) # torch[5863]
+                t = event_total['t'][i][0].to(torch.float32) # torch[19373]
                 x = event_total['x'][i][0].to(torch.float32)
                 y = event_total['y'][i][0].to(torch.float32)
                 p = event_total['p'][i][0].to(torch.float32)
-                stack_on, stack_off = stack_data(t, x, y, p, 2015, w, h) # torch[1,448,280,2015]
+                stack_on, stack_off = stack_data(t, x, y, p, 2015, w, h) # torch[1,2015,448,280]
                 rgb = rgb.to(torch.float16)    #1*280*448*3
                 rgb = rgb.permute(0, 3, 2, 1)   #1*3*448*280
-                stack_on = [s.transpose(0, 1) for s in stack_on] #403*1*448*280
-                stack_off = [s.transpose(0, 1) for s in stack_off] #403*1*448*280
-                # stack_on = stack_on.to(device)  
-                # stack_off = stack_off.to(device)  
+                
+                stack_on = stack_on.transpose(0, 1) #2015*1*448*280
+                stack_off = stack_off.transpose(0, 1) #2015*1*448*280
+                stack_on = stack_on.to(device)  
+                stack_off = stack_off.to(device)  
 
-                if i == 0:
-                    rgb_1 = rgb
-                    stack_on_1 = stack_on
-                    stack_off_1 = stack_off
-                    rgb_1 = rgb_1.to(device)
-                    stack_on_1 = [s.to(device) for s in stack_on_1]
-                    stack_off_1 = [s.to(device) for s in stack_off_1]
-                    lstm_out = None
-                    hidden = None
-                    continue
-                else:
-                    optimizer.zero_grad()
-                    rgb = rgb.to(device)
-                    stack_on = [s.to(device) for s in stack_on]
-                    stack_off = [s.to(device) for s in stack_off]
+                rgb = rgb.to(device)
 
-                    if scaler is not None:
+                # if i == 0:
+                #     rgb_1 = rgb
+                #     stack_on_1 = stack_on
+                #     stack_off_1 = stack_off
+                #     rgb_1 = rgb_1.to(device)
+
+                #     stack_on_1 = stack_on_1.to(device)
+                #     stack_off_1 = stack_off_1.to(device)
+                    
+                #     lstm_out = None
+                #     hidden = None
+                #     continue
+                # else:
+                #     optimizer.zero_grad()
+                #     rgb = rgb.to(device)
+                    
+
+                if scaler is not None:
+
+                    if i == 0:
                         with torch.autocast("cuda:0"):
-                            clipper = REClipper(stack_on_1, stack_off_1, rgb_1, device)  #1*7*448*280
+                            clipper = REClipper(stack_on, stack_off, rgb, device)
+                            lstm_out = None
+                            hidden = None
+                            continue
+                    else:
+                        with torch.autocast("cuda:0"):
                             out = SEHF(stack_on, stack_off, lstm_out, clipper, device)
                             lstm_out, hidden = LSTM(out, hidden)
                             loss = hybrid_loss(out, rgb)
+
+                    # with torch.autocast("cuda:0"):
+                    #     clipper = REClipper(stack_on_1, stack_off_1, rgb_1, device)  #1*7*448*280
+                    #     out = SEHF(stack_on, stack_off, lstm_out, clipper, device)
+                    #     lstm_out, hidden = LSTM(out, hidden)
+                    #     loss = hybrid_loss(out, rgb)
+
                         lstm_out = lstm_out.detach()
                         if hidden is not None:
                             hidden = tuple(h.detach() for h in hidden)
@@ -254,17 +283,23 @@ def main():
                         scaler.update()
                         train_sample += 1
                         train_loss += loss.item()
-                        if i == rgb_total.shape[1] - 1:
+                        if train_patch_iter % 5 == 0:
                             save_result = out.detach().cpu().squeeze(0).numpy().astype(np.uint8)
                             save_result = save_result.transpose(2, 1, 0)
                             save_result = save_result[:, :, [2, 1, 0]]  # 将 BGR 转换为 RGB
                             sample = Image.fromarray(save_result)
-                            sample.save(os.path.join(sample_check, f'{epoch}_{train_pic_idx}_train.png'))
+                            sample.save(os.path.join(sample_check, f'{epoch}_{train_patch_iter}_{train_pic_idx}_train.png'))
                             train_pic_idx += 1
                         functional.reset_net(REClipper)
                         functional.reset_net(SEHF)
-                    else:
+                else:
+
+                    if i == 0:
                         clipper = REClipper(stack_on_1, stack_off_1, rgb_1)
+                        lstm_out = None
+                        hidden = None
+                        continue
+                    else:
                         out = SEHF(stack_on, stack_off, lstm_out, clipper)
                         lstm_out, hidden = LSTM(out, hidden)
                         loss = hybrid_loss(out, rgb)
@@ -275,19 +310,36 @@ def main():
                         loss.backward()
                         optimizer.step()
                         train_loss += loss.item()
-                        if i == rgb_total.shape[1] - 1:
+                        if train_patch_iter % 5 == 0:
                             save_result = out.detach().cpu().squeeze(0).numpy().astype(np.uint8)
                             save_result = save_result.transpose(2, 1, 0)
-                            save_result = save_result[:, :, [2, 1, 0]]  # 将 BGR 转换为 RGB
+                            save_result = save_result[:, :, [2, 1, 0]]
                             sample = Image.fromarray(save_result)
-                            sample.save(os.path.join(sample_check, f'{epoch}_{train_pic_idx}_train.png'))
+                            sample.save(os.path.join(sample_check, f'{epoch}_{train_patch_iter}_{train_pic_idx}_train.png'))
                             train_pic_idx += 1
                         functional.reset_net(REClipper)
                         functional.reset_net(SEHF)
 
-                    # del rgb, stack_on, stack_off
-                    # torch.cuda.empty_cache()
-
+                        # clipper = REClipper(stack_on_1, stack_off_1, rgb_1)
+                        # out = SEHF(stack_on, stack_off, lstm_out, clipper)
+                        # lstm_out, hidden = LSTM(out, hidden)
+                        # loss = hybrid_loss(out, rgb)
+                        # lstm_out = lstm_out.detach()
+                        # if hidden is not None:
+                        #     hidden = tuple(h.detach() for h in hidden)
+                        # train_sample += 1
+                        # loss.backward()
+                        # optimizer.step()
+                        # train_loss += loss.item()
+                        # if train_patch_iter % 5 == 0:
+                        #     save_result = out.detach().cpu().squeeze(0).numpy().astype(np.uint8)
+                        #     save_result = save_result.transpose(2, 1, 0)
+                        #     save_result = save_result[:, :, [2, 1, 0]]  # 将 BGR 转换为 RGB
+                        #     sample = Image.fromarray(save_result)
+                        #     sample.save(os.path.join(sample_check, f'{epoch}_{train_pic_idx}_train.png'))
+                        #     train_pic_idx += 1
+                        # functional.reset_net(REClipper)
+                        # functional.reset_net(SEHF)
 
 
             train_time = time.time()
@@ -320,48 +372,72 @@ def main():
 
                 for i in range(rgb_total.shape[1]):
                     rgb = rgb_total[:, i, :, :, :] # torch[1,448,280,3]
-                    t = event_total['t'][i][0].to(torch.float32) # torch[5863]
-                    x = event_total['x'][i][0].to(torch.float32)
-                    y = event_total['y'][i][0].to(torch.float32)
-                    p = event_total['p'][i][0].to(torch.float32)
-                    stack_on, stack_off = stack_data(t, x, y, p, 2015, w, h) # torch[1,448,280,2015]
-                    rgb = rgb.to(torch.float16)    #1*280*448*3
-                    rgb = rgb.permute(0, 3, 2, 1)   #1*3*448*280
-                    stack_on = [s.transpose(0, 1) for s in stack_on] #403*1*448*280
-                    stack_off = [s.transpose(0, 1) for s in stack_off] #403*1*448*280
-                    # stack_on = stack_on.to(device)  
-                    # stack_off = stack_off.to(device)  
+                t = event_total['t'][i][0].to(torch.float32) # torch[19373]
+                x = event_total['x'][i][0].to(torch.float32)
+                y = event_total['y'][i][0].to(torch.float32)
+                p = event_total['p'][i][0].to(torch.float32)
+                stack_on, stack_off = stack_data(t, x, y, p, 2015, w, h) # torch[1,2015,448,280]
+                rgb = rgb.to(torch.float16)    #1*280*448*3
+                rgb = rgb.permute(0, 3, 2, 1)   #1*3*448*280
+                
+                stack_on = stack_on.transpose(0, 1) #2015*1*448*280
+                stack_off = stack_off.transpose(0, 1) #2015*1*448*280
+                stack_on = stack_on.to(device)  
+                stack_off = stack_off.to(device)  
+
+                # if i == 0:
+                #     rgb_1 = rgb
+                #     stack_on_1 = stack_on
+                #     stack_off_1 = stack_off
+                #     rgb_1 = rgb_1.to(device)
+
+                #     stack_on_1 = stack_on_1.to(device)
+                #     stack_off_1 = stack_off_1.to(device)
+                    
+                #     lstm_out = None
+                #     hidden = None
+                #     continue
+                # else:
+                #     optimizer.zero_grad()
+                #     rgb = rgb.to(device)
+                    
+                   
+                #     clipper = REClipper(stack_on, stack_off, rgb)
+                #     out = SEHF(stack_on, stack_off, lstm_out, clipper)
+                #     lstm_out, hidden = LSTM(out, hidden)
+                #     loss = hybrid_loss(out, rgb)
+                #     test_loss += loss.item()
+                #     if i == rgb_total.shape[1] - 1:
+                #             save_result = out.detach().cpu().squeeze(0).numpy().astype(np.uint8)
+                #             save_result = save_result.transpose(2, 1, 0)
+                #             save_result = save_result[:, :, [2, 1, 0]]  # 将 BGR 转换为 RGB
+                #             sample = Image.fromarray(save_result)
+                #             sample.save(os.path.join(sample_check, f'{epoch}_{test_patch_iter}_{test_pic_idx}_test.png'))
+                #             test_pic_idx += 1
+                #     functional.reset_net(REClipper)
+                #     functional.reset_net(SEHF)
+
+                rgb = rgb.to(device)
                 if i == 0:
-                    rgb_1 = rgb
-                    stack_on_1 = stack_on
-                    stack_off_1 = stack_off
-                    rgb_1 = rgb_1.to(device)
-                    stack_on_1 = [s.to(device) for s in stack_on_1]
-                    stack_off_1 = [s.to(device) for s in stack_off_1]
+                    clipper = REClipper(stack_on, stack_off, rgb, device)
                     lstm_out = None
                     hidden = None
                     continue
                 else:
-                    rgb = rgb.to(device)
-                    stack_on = [s.to(device) for s in stack_on]
-                    stack_off = [s.to(device) for s in stack_off]
-                    clipper = REClipper(stack_on, stack_off, rgb)
-                    out = SEHF(stack_on, stack_off, lstm_out, clipper)
+                    out = SEHF(stack_on, stack_off, lstm_out, clipper, device)
                     lstm_out, hidden = LSTM(out, hidden)
                     loss = hybrid_loss(out, rgb)
                     test_loss += loss.item()
-                    if i == rgb_total.shape[1] - 1:
-                            save_result = out.detach().cpu().squeeze(0).numpy().astype(np.uint8)
-                            save_result = save_result.transpose(2, 1, 0)
-                            save_result = save_result[:, :, [2, 1, 0]]  # 将 BGR 转换为 RGB
-                            sample = Image.fromarray(save_result)
-                            sample.save(os.path.join(sample_check, f'{epoch}_{test_pic_idx}_test.png'))
-                            test_pic_idx += 1
+                    if test_patch_iter % 5 == 0:
+                        save_result = out.detach().cpu().squeeze(0).numpy().astype(np.uint8)
+                        save_result = save_result.transpose(2, 1, 0)
+                        save_result = save_result[:, :, [2, 1, 0]]
+                        sample = Image.fromarray(save_result)
+                        sample.save(os.path.join(sample_check, f'{epoch}_{test_patch_iter}_{test_pic_idx}_test.png'))
+                        test_pic_idx += 1
                     functional.reset_net(REClipper)
                     functional.reset_net(SEHF)
 
-                    # del rgb, stack_on, stack_off
-                    # torch.cuda.empty_cache()
                 test_patch_iter += 1
                 avg_test_loss = test_loss / test_sample
                 total_test_loss += avg_test_loss

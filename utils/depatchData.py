@@ -22,8 +22,8 @@ def fetch_trigger(t, x, y, p, trigger):
         due to the trigger is not exactly interger 2015, the interval between two trigger is either 2015 or 2016
         when the interval is 2016, we mannually decrease the end trigger by 1
         """
-        if trigger[t_end] - trigger[t_start] == 2016:  
-            trigger[t_end] -= 1
+        if trigger[t_end] - trigger[t_start] >= 2016:  
+            trigger[t_end] = trigger[t_start] + 2015
         while t[idx_start] < trigger[t_start]:
             idx_start += 1
         idx_end = idx_start

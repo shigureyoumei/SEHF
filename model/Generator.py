@@ -85,7 +85,7 @@ class Generator(nn.Module):
         self.up2 = Up(512, 128, bilinear)
         self.up3 = Up(256, 64, bilinear)
         self.up4 = Up(128, 64, bilinear)
-        self.outc = OutConv(64, 3) # 输出层
+        self.outc = OutConv(32, 3) # 输出层
 
         self.conv1 = nn.Sequential(
             nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, padding=1),
@@ -102,10 +102,15 @@ class Generator(nn.Module):
             nn.ReLU(),
             nn.MaxPool2d(2)
         )
+
+        self.conv4 = DoubleConv(32, 8)
+        self.conv5 = DoubleConv(72, 32)
+        
  
     def forward(self, x, prompt): # prompt: 32*448*280, x: 32*448*280
         x1 = self.inc(x) #  32*448*280
         x1 = torch.cat([x1, prompt], dim=1) # 32+32=64*448*280  
+        prompt_copy = prompt.clone()
 
         # 四层左部分
         x2 = self.down1(x1) # 64*224*140
@@ -127,5 +132,10 @@ class Generator(nn.Module):
         x = self.up2(x, x3) # 256*56*35->256*112*70->CAT512*112*70->128*112*70
         x = self.up3(x, x2) # 128*112*70->128*224*140->CAT256*224*140->64*224*140
         x = self.up4(x, x1) # 64*224*140->64*448*280->CAT128*448*280->64*448*280
+
+        prompt_copy = self.conv4(prompt_copy) # 8*448*280
+        x = torch.cat([x, prompt_copy], dim=1) # 64+8=72*448*280
+        x = self.conv5(x) # 32*448*280
+
         result = self.outc(x) # 最终输出
         return result
