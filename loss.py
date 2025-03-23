@@ -9,6 +9,9 @@ from torchmetrics.functional import structural_similarity_index_measure as ssim
 lpips_loss_fn = lpips.LPIPS(net='vgg')  # 使用 VGG 作为特征提取网络
 lpips_loss_fn = lpips_loss_fn.to('cuda' if torch.cuda.is_available() else 'cpu')
 
+
+alpha = 1e-3
+
 # **混合损失函数**
 class HybridLoss(nn.Module):
     def __init__(self, lambda_mse=1.0, lambda_ssim=0.5, lambda_lpips=0.2):
@@ -22,11 +25,14 @@ class HybridLoss(nn.Module):
         # **MSE 损失**
         loss_mse = self.mse_loss(gen_image, real_image)
 
-        # **SSIM 损失（1 - SSIM）**
-        loss_ssim = 1 - ssim(gen_image, real_image, data_range=1.0)
-
-        # **LPIPS 感知损失**
-        loss_lpips = lpips_loss_fn(gen_image, real_image).mean()  # LPIPS 需要归一化到 [-1, 1]
+        # **SSIM 损失（1 - SSIM）** # **LPIPS 感知损失**
+        loss_ssim = 0.
+        loss_lpips = 0.
+        for i in range(gen_image.size(2)):
+            loss_ssim += 1 - ssim(gen_image[:,:,i,:,:], real_image[:,:,i,:,:], data_range=1.0)
+            loss_lpips += alpha*lpips_loss_fn(gen_image[:,:,i,:,:], real_image[:,:,i,:,:]).mean()
+        loss_ssim /= gen_image.size(2)
+        loss_lpips /= gen_image.size(2)
 
         # **最终混合损失**
         total_loss = (self.lambda_mse * loss_mse + 

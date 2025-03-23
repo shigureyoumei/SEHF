@@ -15,7 +15,7 @@
             "args": [
 
                 //---------train----------
-                "--data","/mnt/d/ball_data",
+                "--data","data",
                 "--amp",
                 "--epochs","20",
                 "--bs","1",
