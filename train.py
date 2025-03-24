@@ -30,12 +30,21 @@ warnings.filterwarnings("ignore", category=FutureWarning, module="torchmetrics.u
 alpha = 1e-1
 
 def stack_data(t, x, y, p, w, h):
-    map = torch.zeros((w, h), dtype=torch.float32)
+    map_on = torch.ones((w, h), dtype=torch.float32)
+    map_off = torch.ones((w, h), dtype=torch.float32)
     assert t.shape == x.shape == y.shape == p.shape
     len = t.shape[0]
     for i in range(len):
-        map[int(x[i]), int(y[i])] += p[i]
-    map = map.unsqueeze(0)
+        if p[i] > 0:
+            map_on[int(x[i]), int(y[i])] += p[i]
+        else:
+            map_off[int(x[i]), int(y[i])] += p[i]*(-1.0)
+    map_on = map_on.unsqueeze(0)
+    map_off = map_off.unsqueeze(0)
+
+    
+
+    map = torch.cat((map_on, map_off), dim=0)
 
     return map
 
@@ -183,10 +192,10 @@ def main():
             event_total = torch.stack(event_total, dim=0).unsqueeze(0).permute(0, 2, 1, 4, 3).to(device) 
             # 1*1*25*280*448
             rgb_first = rgb_total[:, :, 0, :, :].to(torch.float16)   # 3*280*448
-            event_first = event_total[:, :, 0, :, :]   # 1*280*448    
+            event_first = event_total[:, :, 0, :, :]   # 2*280*448    
 
             rgb_gt = rgb_total[:, :, 1:, :, :].to(torch.float16) # 1*3*24*280*448
-            event_input = event_total[:, :, 1:, :, :]  # 1*1*24*280*448
+            event_input = event_total[:, :, 1:, :, :]  # 1*2*24*280*448
 
             rgb_first.to(device)
             event_first.to(device)
@@ -242,10 +251,10 @@ def main():
                 event_total = torch.stack(event_total, dim=0).unsqueeze(0).permute(0, 2, 1, 4, 3).to(device) 
 
                 rgb_first = rgb_total[:, :, 0, :, :].to(torch.float16)   # 3*448*280
-                event_first = event_total[:, :, 0, :, :]   # 1*448*280    
+                event_first = event_total[:, :, 0, :, :]   # 2*448*280    
 
                 rgb_gt = rgb_total[:, :, 1:, :, :].to(torch.float16)  # 1*3*24*448*280
-                event_input = event_total[:, :, 1:, :, :]  # 1*24*448*280
+                event_input = event_total[:, :, 1:, :, :]  # 2*24*448*280
 
                 output = SEHF(event_first, rgb_first, event_input)
                 loss = F.mse_loss(output, rgb_gt)

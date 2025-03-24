@@ -71,7 +71,7 @@ class Down(nn.Module):
 class Up(nn.Module):
     """Upscaling then double conv"""
  
-    def __init__(self, in_channels, out_channels, bilinear=True):
+    def __init__(self, in_channels, out_channels, bilinear=False):
         super().__init__()
  
         # if bilinear, use the normal convolutions to reduce the number of channels
@@ -134,7 +134,7 @@ class Generator(nn.Module):
         
         
  
-    def forward(self, x): # x: 3*24*448*280
+    def forward(self, x): # x: 4*24*448*280
         x1 = self.inc(x) #  64*24*280*448
 
         # 四层左部分
