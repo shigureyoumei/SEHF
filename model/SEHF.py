@@ -12,7 +12,7 @@ class REClipper(nn.Module):
         
         self.clipper = nn.Sequential(
             nn.Conv2d(in_channels=5, out_channels=8, kernel_size=3, padding=1),
-            # nn.ReLU(),
+            nn.ReLU(),
             nn.Conv2d(in_channels=8, out_channels=output_channels, kernel_size=3, padding=1),
             nn.ReLU(),
         )
@@ -32,7 +32,7 @@ class SEHF(nn.Module):
 
         self.REClipper = REClipper(output_channels=1)
         self.generator = Generator(n_channels=3, bilinear=True)
-        self.manifier = nn.parameter.Parameter(torch.tensor([100.0], requires_grad=True))
+        self.manifier = nn.parameter.Parameter(torch.tensor([10.0], requires_grad=True))
         
 
     def forward(self, event_first, rgb_first, event_input):

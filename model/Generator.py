@@ -3,40 +3,21 @@ from torch import nn
 import torch.nn.functional as F
 
 class LSTM(nn.Module):
-    def __init__(self, num_layers:int, input_channels:int):
+    def __init__(self, num_layers:int):
         super().__init__()  # input shape = 512*24*28*17
-        self.input_channels = input_channels
         self.num_layers = num_layers
-        self.conv = nn.Sequential(
-            nn.Conv2d(in_channels=512, out_channels=128, kernel_size=3, stride=1, padding=1), # 128*28*17
-            
-            nn.Conv2d(in_channels=128, out_channels=32, kernel_size=3, stride=1, padding=1), # 32*28*17
-            nn.ReLU(),
-            nn.Flatten(), # 32*17*28
-            nn.Linear(32*17*28, 1024),
-            
-            ) 
-        self.lstm = nn.LSTM(input_size=1024, hidden_size=1024, num_layers=num_layers, batch_first=True)
-        self.upsample = nn.Sequential(
-            nn.Linear(1024, 32*17*28),
-            
-            nn.Unflatten(1, (32, 17, 28)),
-            nn.Conv2d(in_channels=32, out_channels=512, kernel_size=3, stride=1, padding=1),
-            nn.ReLU(),
-        )
+        
+        self.lstm = nn.LSTM(input_size=512*17*28, hidden_size=512*17*28, num_layers=num_layers, batch_first=True)
 
     def forward(self, x_3d):   # input shape = 512*24*17*28
         hidden = None
-        output = []
-        for t in range(x_3d.size(2)):
-            x = x_3d[:, :, t, :, :]  # 512*17*28
-            x = self.conv(x)  # 1024
-            out, hidden = self.lstm(x, hidden)
-            x = self.upsample(out) # 512*17*28
-            output.append(x)   # 512*17*28
-        output = torch.stack(output, dim=2) # 512*24*17*28
+        x_3d = x_3d.premute(0, 2, 1, 3, 4)  # 24*512*17*28
+        x_3d = x_3d.reshape(24, -1)
+        x, _ = self.lstm(x_3d, hidden)  # 24*512*17*28
+        x = x.reshape(24, 512, 17, 28)
+        x = x.permute(0, 2, 1, 3, 4)  # 512*24*17*28
 
-        return output
+        return x
 
 class DoubleConv(nn.Module):
     """(convolution => [BN] => ReLU) * 2"""
@@ -46,8 +27,10 @@ class DoubleConv(nn.Module):
 
         self.double_conv = nn.Sequential(
             nn.Conv3d(in_channels, out_channels, kernel_size=3, stride=1, padding=1),
-            # nn.ReLU(inplace=True),
+            nn.BatchNorm3d(out_channels),
+            nn.ReLU(inplace=True),
             nn.Conv3d(out_channels, out_channels, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm3d(out_channels),
             nn.ReLU(inplace=True)
         )
  
@@ -123,7 +106,7 @@ class Generator(nn.Module):
         self.down3 = Down(256, 512) # 256*24*112*70->512*24*56*35
         self.down4 = Down(512, 512) # 512*24*56*35->512*24*28*17
 
-        self.lstm = LSTM(num_layers=3, input_channels=512)
+        self.lstm = LSTM(num_layers=3)
 
         self.up1 = Up(1024, 256, bilinear)
         self.up2 = Up(512, 128, bilinear)
