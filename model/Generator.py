@@ -6,15 +6,22 @@ class LSTM(nn.Module):
     def __init__(self, num_layers:int):
         super().__init__()  # input shape = 512*24*28*17
         self.num_layers = num_layers
-        
-        self.lstm = nn.LSTM(input_size=512*17*28, hidden_size=512*17*28, num_layers=num_layers, batch_first=True)
+        self.down = nn.Sequential(
+            nn.Linear(512*17*28, 1024),
+        )
+        self.lstm = nn.LSTM(input_size=1024, hidden_size=1024, num_layers=num_layers, batch_first=True)
+        self.up = nn.Sequential(
+            nn.Linear(1024, 512*17*28),
+        )
 
     def forward(self, x_3d):   # input shape = 512*24*17*28
         hidden = None
-        x_3d = x_3d.premute(0, 2, 1, 3, 4)  # 24*512*17*28
-        x_3d = x_3d.reshape(24, -1)
-        x, _ = self.lstm(x_3d, hidden)  # 24*512*17*28
-        x = x.reshape(24, 512, 17, 28)
+        x_3d = x_3d.permute(0, 2, 1, 3, 4)  # 24*512*17*28
+        x_3d = x_3d.reshape(1, 24, -1) # 24*232448
+        x = self.down(x_3d)
+        x, _ = self.lstm(x, hidden)  # 24*1024
+        x = self.up(x)
+        x = x.reshape(1, 24, 512, 17, 28)
         x = x.permute(0, 2, 1, 3, 4)  # 512*24*17*28
 
         return x
