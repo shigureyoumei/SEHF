@@ -14,6 +14,7 @@ class LSTM(nn.Module):
             nn.ReLU(),
             nn.Flatten(), # 32*17*28
             nn.Linear(32*17*28, 1024),
+            nn.ReLU(),
             ) 
         self.lstm = nn.LSTM(input_size=1024, hidden_size=1024, num_layers=num_layers, batch_first=True)
         self.upsample = nn.Sequential(
@@ -21,6 +22,7 @@ class LSTM(nn.Module):
             nn.ReLU(),
             nn.Unflatten(1, (32, 17, 28)),
             nn.Conv2d(in_channels=32, out_channels=512, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(),
         )
 
     def forward(self, x_3d):   # input shape = 512*24*17*28
