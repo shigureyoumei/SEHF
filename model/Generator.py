@@ -12,27 +12,27 @@ class LSTM(nn.Module):
             nn.ReLU(),
             nn.Conv2d(in_channels=128, out_channels=32, kernel_size=3, stride=1, padding=1), # 32*28*17
             nn.ReLU(),
-            nn.Flatten(), # 32*28*17
-            nn.Linear(32*28*17, 1024),
+            nn.Flatten(), # 32*17*28
+            nn.Linear(32*17*28, 1024),
             ) 
         self.lstm = nn.LSTM(input_size=1024, hidden_size=1024, num_layers=num_layers, batch_first=True)
         self.upsample = nn.Sequential(
-            nn.Linear(1024, 32*28*17),
+            nn.Linear(1024, 32*17*28),
             nn.ReLU(),
-            nn.Unflatten(1, (32, 28, 17)),
+            nn.Unflatten(1, (32, 17, 28)),
             nn.Conv2d(in_channels=32, out_channels=512, kernel_size=3, stride=1, padding=1),
         )
 
-    def forward(self, x_3d):   # input shape = 512*24*28*17
+    def forward(self, x_3d):   # input shape = 512*24*17*28
         hidden = None
         output = []
-        for t in range(x_3d.size(1)):
-            x = x_3d[:, t, :, :, :]  # 512*28*17
+        for t in range(x_3d.size(2)):
+            x = x_3d[:, :, t, :, :]  # 512*17*28
             x = self.conv(x)  # 1024
-            out, hidden = self.lstm(hidden)
-            x = self.upsample(out) # 512*28*17
-            output.append(x.unsqueeze(1))   # 512*1*28*17
-        output = torch.stack(output, dim=1) # 512*24*28*17
+            out, hidden = self.lstm(x, hidden)
+            x = self.upsample(out) # 512*17*28
+            output.append(x)   # 512*17*28
+        output = torch.stack(output, dim=2) # 512*24*17*28
 
         return output
 
@@ -58,7 +58,7 @@ class Down(nn.Module):
     def __init__(self, in_channels, out_channels):
         super().__init__()
         self.maxpool_conv = nn.Sequential(
-            nn.MaxPool3d(2),
+            nn.MaxPool3d(stride=(1, 2, 2), kernel_size=(1, 2, 2)),
             DoubleConv(in_channels, out_channels)
         )
  
@@ -82,7 +82,12 @@ class Up(nn.Module):
         self.conv = DoubleConv(in_channels, out_channels)
  
     def forward(self, x1, x2):
-        x1 = self.up(x1)
+        output = []
+        for t in range(x1.size(2)):
+            x = x1[:, :, t, :, :]
+            output.append(self.up(x))
+        x1 = torch.stack(output, dim=2)
+        
         # input is CDHW
         diffZ = torch.tensor([x2.size()[2] - x1.size()[2]])
         diffY = torch.tensor([x2.size()[3] - x1.size()[3]])
@@ -128,21 +133,21 @@ class Generator(nn.Module):
         
  
     def forward(self, x): # x: 3*24*448*280
-        x1 = self.inc(x) #  64*24*448*280
+        x1 = self.inc(x) #  64*24*280*448
 
         # 四层左部分
-        x2 = self.down1(x1) # 128*24*224*140
-        x3 = self.down2(x2) # 256*24*112*70
-        x4 = self.down3(x3) # 512*24*56*35
-        x5 = self.down4(x4) # 512*24*28*17
+        x2 = self.down1(x1) # 128*24*140*224
+        x3 = self.down2(x2) # 256*24*70*112
+        x4 = self.down3(x3) # 512*24*35*56
+        x5 = self.down4(x4) # 512*24*17*28
 
-        lstm_out = self.lstm(x5) # 512*24*28*17
+        lstm_out = self.lstm(x5) # 512*24*17*28
 
         # 四层右部分
-        x = self.up1(lstm_out, x4) # 512*24*28*17->512*24*56*35->CAT1024*24*56*35->256*24*56*35
-        x = self.up2(x, x3) # 256*24*56*35->256*24*112*70->CAT512*24*112*70->128*24*112*70
-        x = self.up3(x, x2) # 128*24*112*70->128*24*224*140->CAT256*24*224*140->64*24*224*140
-        x = self.up4(x, x1) # 64*24*224*140->64*24*448*280->CAT128*24*448*280->64*24*448*280
+        x = self.up1(lstm_out, x4) # 512*24*17*28->512*24*35*56->CAT1024*24*35*56->256*24*35*56
+        x = self.up2(x, x3) # 256*24*35*56->256*24*70*112->CAT512*24*70*112->128*24*70*112
+        x = self.up3(x, x2) # 128*24*70*112->128*24*140*224->CAT256*24*140*224->64*24*140*224
+        x = self.up4(x, x1) # 64*24*140*224->64*24*280*448->CAT128*24*280*448->64*24*280*448
 
-        result = self.outc(x) # 3*24*448*280
+        result = self.outc(x) # 3*24*280*448
         return result

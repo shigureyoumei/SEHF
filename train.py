@@ -27,6 +27,7 @@ from PIL import Image
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning, module="torchmetrics.utilities.prints")
 
+alpha = 1e-1
 
 def stack_data(t, x, y, p, w, h):
     map = torch.zeros((w, h), dtype=torch.float32)
@@ -97,7 +98,7 @@ def main():
     print(SEHF)
     print()
 
-
+    SEHF.to(device)
 
 
 
@@ -170,45 +171,50 @@ def main():
         for event_, rgb_ in tqdm(train_loader, desc='Train dataLoader', total=len(train_loader)):
             patch_iter += 1
             optimizer.zero_grad()
-            rgb_total = rgb_.permute(0, 4, 1, 3, 2).to(device) # 1*3*25*448*280
+            rgb_total = rgb_.permute(0, 4, 1, 2, 3).to(device) # 1*3*25*280*448
             event_total = []
 
-            for i in tqdm(range(rgb_total.shape[2]), desc='Train dataLoader', total=rgb_total.shape[2]):
+            for i in range(rgb_total.shape[2]):
                 t = event_['t'][i][0].to(torch.float32)
                 x = event_['x'][i][0].to(torch.float32)
                 y = event_['y'][i][0].to(torch.float32)
                 p = event_['p'][i][0].to(torch.float32)
                 event_total.append(stack_data(t, x, y, p, w, h))
-            event_total = torch.stack(event_total, dim=0).unsqueeze(0).permute(0, 2, 1, 3, 4).to(device) 
+            event_total = torch.stack(event_total, dim=0).unsqueeze(0).permute(0, 2, 1, 4, 3).to(device) 
+            # 1*1*25*280*448
+            rgb_first = rgb_total[:, :, 0, :, :].to(torch.float16)   # 3*280*448
+            event_first = event_total[:, :, 0, :, :]   # 1*280*448    
 
-            rgb_first = rgb_total[:, :, 0, :, :]   # 3*448*280
-            event_first = event_total[:, :, 0, :, :]   # 1*448*280    
+            rgb_gt = rgb_total[:, :, 1:, :, :].to(torch.float16) # 1*3*24*280*448
+            event_input = event_total[:, :, 1:, :, :]  # 1*1*24*280*448
 
-            rgb_gt = rgb_total[:, :, 1:, :, :]  # 1*3*24*448*280
-            event_input = event_total[:, :, 1:, :, :]  # 1*24*448*280
+            rgb_first.to(device)
+            event_first.to(device)
+            rgb_gt.to(device)
+            event_input.to(device)
 
             if scaler is not None:
                 with torch.autocast("cuda:0"):
                     output = SEHF(event_first, rgb_first, event_input)
-                    loss = hybrid_loss(output, rgb_gt)
+                    loss = F.mse_loss(output, rgb_gt)
+                    # loss = hybrid_loss(output, rgb_gt)
                 scaler.scale(loss).backward()
                 scaler.step(optimizer)
                 scaler.update()
                    
             else:
                 output = SEHF(event_first, rgb_first, event_input)
-                loss = hybrid_loss(output, rgb_gt)
+                # loss = hybrid_loss(output, rgb_gt)
+                loss = F.mse_loss(output, rgb_gt)
                 loss.backward()
                 optimizer.step()
             train_loss += loss.item()
 
-            if patch_iter % 4 == 0:
-                output = output.squeeze(0).permute(1, 0, 2, 3).detach().cpu().numpy()
+            if patch_iter % 100 == 0:
+                output = output.squeeze(0).permute(1, 0, 3, 2).detach().cpu().numpy()
                 for i in range(output.shape[0]):
                     img = output[i]
-                    img = np.clip(img, 0, 1)
-                    img = (img * 255).astype(np.uint8)
-                    img = Image.fromarray(img.transpose(1, 2, 0))
+                    img = Image.fromarray(img)
                     img.save(os.path.join(sample_check, f'epoch_{epoch}_train_{patch_iter}_frame_{i}.png'))
                     
 
@@ -224,35 +230,34 @@ def main():
         with torch.no_grad():
             for event_total, rgb_total in tqdm(test_loader, desc='test dataLoader', total=len(test_loader)):
                 test_patch_iter += 1
-                rgb_total = rgb_.permute(0, 4, 1, 3, 2).to(device) # 1*3*25*448*280
+                rgb_total = rgb_.permute(0, 4, 1, 2, 3).to(device) # 1*3*25*448*280
                 event_total = []
 
-                for i in tqdm(range(rgb_total.shape[2]), desc='Train dataLoader', total=rgb_total.shape[2]):
+                for i in range(rgb_total.shape[2]):
                     t = event_['t'][i][0].to(torch.float32)
                     x = event_['x'][i][0].to(torch.float32)
                     y = event_['y'][i][0].to(torch.float32)
                     p = event_['p'][i][0].to(torch.float32)
                     event_total.append(stack_data(t, x, y, p, w, h))
-                event_total = torch.stack(event_total, dim=0).unsqueeze(0).permute(0, 2, 1, 3, 4).to(device) 
+                event_total = torch.stack(event_total, dim=0).unsqueeze(0).permute(0, 2, 1, 4, 3).to(device) 
 
-                rgb_first = rgb_total[:, :, 0, :, :]   # 3*448*280
+                rgb_first = rgb_total[:, :, 0, :, :].to(torch.float16)   # 3*448*280
                 event_first = event_total[:, :, 0, :, :]   # 1*448*280    
 
-                rgb_gt = rgb_total[:, :, 1:, :, :]  # 1*3*24*448*280
+                rgb_gt = rgb_total[:, :, 1:, :, :].to(torch.float16)  # 1*3*24*448*280
                 event_input = event_total[:, :, 1:, :, :]  # 1*24*448*280
 
                 output = SEHF(event_first, rgb_first, event_input)
-                loss = hybrid_loss(output, rgb_gt)
+                loss = F.mse_loss(output, rgb_gt)
+                # loss = hybrid_loss(output, rgb_gt)
                 test_loss += loss.item()
 
-                if test_patch_iter % 4 == 0:
-                    output = output.squeeze(0).permute(1, 0, 2, 3).detach().cpu().numpy()
+                if test_patch_iter % 100 == 0:
+                    output = output.squeeze(0).permute(1, 0, 3, 2).detach().cpu().numpy()
                     for i in range(output.shape[0]):
                         img = output[i]
-                        img = np.clip(img, 0, 1)
-                        img = (img * 255).astype(np.uint8)
-                        img = Image.fromarray(img.transpose(1, 2, 0))
-                        img.save(os.path.join(sample_check, f'epoch_{epoch}_test_{test_patch_iter}_frame_{i}.png'))
+                        img = Image.fromarray(img)
+                        img.save(os.path.join(sample_check, f'epoch_{epoch}_test_{patch_iter}_frame_{i}.png'))
 
 
         test_time = time.time()

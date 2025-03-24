@@ -18,9 +18,9 @@ class REClipper(nn.Module):
         )
 
     def forward(self, event, rgb):
-        x = torch.cat([event, rgb], dim=1)  # 4*448*280
-        x = self.clipper(x) # 4*448*280
-        x = x.unsqueeze(1).repeat(1, 1, 24, 1, 1)  # 4*24*448*280
+        x = torch.cat([event, rgb], dim=1)  # 4*280*448
+        x = self.clipper(x) # 2*280*448
+        x = x.unsqueeze(2).repeat(1, 1, 24, 1, 1)  # 2*24*280*448
         return x
     
 
@@ -35,7 +35,7 @@ class SEHF(nn.Module):
         
 
     def forward(self, event_first, rgb_first, event_input):
-        clipper = self.REClipper(event_first, rgb_first)  # 2*24*448*280
+        clipper = self.REClipper(event_first, rgb_first)  # 2*24*280*448
         event_input = torch.cat([event_input, clipper], dim=1)  # 3*24*448*280
 
         x = self.generator(event_input)  # 3*24*448*280

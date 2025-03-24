@@ -23,14 +23,14 @@ class HybridLoss(nn.Module):
 
     def forward(self, gen_image, real_image):
         # **MSE 损失**
-        loss_mse = self.mse_loss(gen_image, real_image)
+        loss_mse = alpha*self.mse_loss(gen_image, real_image)
 
         # **SSIM 损失（1 - SSIM）** # **LPIPS 感知损失**
         loss_ssim = 0.
         loss_lpips = 0.
         for i in range(gen_image.size(2)):
             loss_ssim += 1 - ssim(gen_image[:,:,i,:,:], real_image[:,:,i,:,:], data_range=1.0)
-            loss_lpips += alpha*lpips_loss_fn(gen_image[:,:,i,:,:], real_image[:,:,i,:,:]).mean()
+            loss_lpips += lpips_loss_fn(gen_image[:,:,i,:,:], real_image[:,:,i,:,:]).mean()
         loss_ssim /= gen_image.size(2)
         loss_lpips /= gen_image.size(2)
 
