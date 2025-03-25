@@ -207,6 +207,7 @@ def main():
                     output = SEHF(event_first, rgb_first, event_input)
                     loss = F.mse_loss(output, rgb_gt)
                     # loss = hybrid_loss(output, rgb_gt)
+                print(f'current patch: {patch_iter}, loss: {loss.item()}')
                 scaler.scale(loss).backward()
                 scaler.step(optimizer)
                 scaler.update()
@@ -220,7 +221,7 @@ def main():
             train_loss += loss.item()
 
             if patch_iter % 100 == 0:
-                output = output.squeeze(0).permute(1, 0, 3, 2).detach().cpu().numpy()
+                output = output.squeeze(0).permute(1, 2, 3, 0).detach().cpu().numpy().astype(np.uint8)
                 for i in range(output.shape[0]):
                     img = output[i]
                     img = Image.fromarray(img)
@@ -229,7 +230,8 @@ def main():
 
 
         train_time = time.time()
-        writer.add_scalar('train_loss', train_loss, epoch)
+        avg_train_loss = train_loss / patch_iter
+        writer.add_scalar('train_loss', avg_train_loss, epoch)
 
 
 
@@ -262,7 +264,7 @@ def main():
                 test_loss += loss.item()
 
                 if test_patch_iter % 100 == 0:
-                    output = output.squeeze(0).permute(1, 0, 3, 2).detach().cpu().numpy()
+                    output = output.squeeze(0).permute(1, 2, 3, 0).detach().cpu().numpy().astype(np.uint8)
                     for i in range(output.shape[0]):
                         img = output[i]
                         img = Image.fromarray(img)
@@ -270,11 +272,12 @@ def main():
 
 
         test_time = time.time()
-        writer.add_scalar('test_loss',test_loss, epoch)
+        avg_test_loss = test_loss / test_patch_iter
+        writer.add_scalar('test_loss',avg_test_loss, epoch)
 
         save_best = False
-        if test_loss < lowest_test_loss:
-            lowest_test_loss = test_loss
+        if avg_test_loss < lowest_test_loss:
+            lowest_test_loss = avg_test_loss
             best_epoch = epoch
             save_best = True
 
