@@ -8,13 +8,13 @@ class LSTM(nn.Module):
         self.num_layers = num_layers
         self.down = nn.Sequential(
             nn.Linear(512*17*28, 1024),
-            nn.BatchNorm1d(1024),
+            nn.LayerNorm(1024),
             nn.ReLU(inplace=True),
         )
         self.lstm = nn.LSTM(input_size=1024, hidden_size=1024, num_layers=num_layers, batch_first=True)
         self.up = nn.Sequential(
             nn.Linear(1024, 512*17*28),
-            nn.BatchNorm1d(512*17*28),
+            nn.LayerNorm(512*17*28),
             nn.ReLU(inplace=True),
         )
 
