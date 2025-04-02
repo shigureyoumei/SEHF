@@ -209,6 +209,8 @@ def main():
                     # loss = hybrid_loss(output, rgb_gt)
                 print(f'current patch: {patch_iter}, loss: {loss.item()}')
                 scaler.scale(loss).backward()
+                scaler.unscale_(optimizer)  # 取消缩放以便裁剪
+                torch.nn.utils.clip_grad_value_(SEHF.parameters(), clip_value=10.0)
                 scaler.step(optimizer)
                 scaler.update()
                    
@@ -217,6 +219,8 @@ def main():
                 # loss = hybrid_loss(output, rgb_gt)
                 loss = F.mse_loss(output, rgb_gt)
                 loss.backward()
+                torch.nn.utils.clip_grad_value_(SEHF.parameters(), clip_value=10.0)
+
                 optimizer.step()
             train_loss += loss.item()
 
