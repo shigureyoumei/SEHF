@@ -3,7 +3,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from spikingjelly.activation_based import functional
 from torch.utils.tensorboard import SummaryWriter
 import os
 import argparse
@@ -30,8 +29,8 @@ warnings.filterwarnings("ignore", category=FutureWarning, module="torchmetrics.u
 alpha = 1e-1
 
 def stack_data(t, x, y, p, w, h):
-    map_on = torch.ones((w, h), dtype=torch.float32)
-    map_off = torch.ones((w, h), dtype=torch.float32)
+    map_on = torch.zeros((w, h), dtype=torch.float32)
+    map_off = torch.zeros((w, h), dtype=torch.float32)
     assert t.shape == x.shape == y.shape == p.shape
     len = t.shape[0]
     for i in range(len):
@@ -52,7 +51,7 @@ def stack_data(t, x, y, p, w, h):
 def launch_tensorboard(logdir):
     # 启动 TensorBoard 进程
     tensorboard_process = subprocess.Popen(
-        ['tensorboard', '--logdir', logdir],
+        ['/home/d203/micromamba/envs/SEHF/bin/tensorboard', '--logdir', logdir],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE
     )
@@ -126,8 +125,8 @@ def main():
     train_dataset = pairDateset(train_list, w, h)
     test_dataset = pairDateset(test_list, w, h)
 
-    train_loader = DataLoader(train_dataset, batch_size=1, shuffle=False, num_workers=0, pin_memory=False)
-    test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=0, pin_memory=False)
+    train_loader = DataLoader(train_dataset, batch_size=1, shuffle=True, num_workers=0, pin_memory=False)
+    test_loader = DataLoader(test_dataset, batch_size=1, shuffle=True, num_workers=0, pin_memory=False)
 
     scaler = None
     if amp:
@@ -191,10 +190,10 @@ def main():
                 event_total.append(stack_data(t, x, y, p, w, h))
             event_total = torch.stack(event_total, dim=0).unsqueeze(0).permute(0, 2, 1, 4, 3).to(device) 
             # 1*1*25*280*448
-            rgb_first = rgb_total[:, :, 0, :, :].to(torch.float16)   # 3*280*448
+            rgb_first = rgb_total[:, :, 0, :, :].to(torch.float32)   # 3*280*448
             event_first = event_total[:, :, 0, :, :]   # 2*280*448    
 
-            rgb_gt = rgb_total[:, :, 1:, :, :].to(torch.float16) # 1*3*24*280*448
+            rgb_gt = rgb_total[:, :, 1:, :, :].to(torch.float32) # 1*3*24*280*448
             event_input = event_total[:, :, 1:, :, :]  # 1*2*24*280*448
 
             rgb_first.to(device)
@@ -207,10 +206,12 @@ def main():
                     output = SEHF(event_first, rgb_first, event_input)
                     loss = F.mse_loss(output, rgb_gt)
                     # loss = hybrid_loss(output, rgb_gt)
+                print()
                 print(f'current patch: {patch_iter}, loss: {loss.item()}')
+                print()
                 scaler.scale(loss).backward()
                 scaler.unscale_(optimizer)  # 取消缩放以便裁剪
-                torch.nn.utils.clip_grad_value_(SEHF.parameters(), clip_value=10.0)
+                torch.nn.utils.clip_grad_value_(SEHF.parameters(), clip_value=5.0)
                 scaler.step(optimizer)
                 scaler.update()
                    
@@ -218,18 +219,21 @@ def main():
                 output = SEHF(event_first, rgb_first, event_input)
                 # loss = hybrid_loss(output, rgb_gt)
                 loss = F.mse_loss(output, rgb_gt)
+                print()
+                print(f'current patch: {patch_iter}, loss: {loss.item()}')
+                print()
                 loss.backward()
-                torch.nn.utils.clip_grad_value_(SEHF.parameters(), clip_value=10.0)
+                torch.nn.utils.clip_grad_value_(SEHF.parameters(), clip_value=5.0)
 
                 optimizer.step()
             train_loss += loss.item()
 
-            if patch_iter % 100 == 0:
+            if patch_iter % 100 == 0 or loss < 100.0 :
                 output = output.squeeze(0).permute(1, 2, 3, 0).detach().cpu().numpy().astype(np.uint8)
                 for i in range(output.shape[0]):
-                    img = output[i]
+                    img = output[i][:, :, [2, 1, 0]]
                     img = Image.fromarray(img)
-                    img.save(os.path.join(sample_check, f'epoch_{epoch}_train_{patch_iter}_frame_{i}.png'))
+                    img.save(os.path.join(sample_check, f'epoch_{epoch}_train_{patch_iter}_frame_{i}_loss_{loss}.png'))
                     
 
 
@@ -270,7 +274,7 @@ def main():
                 if test_patch_iter % 100 == 0:
                     output = output.squeeze(0).permute(1, 2, 3, 0).detach().cpu().numpy().astype(np.uint8)
                     for i in range(output.shape[0]):
-                        img = output[i]
+                        img = output[i][:, :, [2, 1, 0]]
                         img = Image.fromarray(img)
                         img.save(os.path.join(sample_check, f'epoch_{epoch}_test_{patch_iter}_frame_{i}.png'))
 

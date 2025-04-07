@@ -7,13 +7,13 @@ class LSTM(nn.Module):
         super().__init__()  # input shape = 512*24*28*17
         self.num_layers = num_layers
         self.down = nn.Sequential(
-            nn.Linear(512*17*28, 1024),
-            nn.LayerNorm(1024),
+            nn.Linear(512*17*28, 2048),
+            nn.LayerNorm(2048),
             nn.ReLU(inplace=True),
         )
-        self.lstm = nn.LSTM(input_size=1024, hidden_size=1024, num_layers=num_layers, batch_first=True)
+        self.lstm = nn.LSTM(input_size=2048, hidden_size=2048, num_layers=num_layers, batch_first=True)
         self.up = nn.Sequential(
-            nn.Linear(1024, 512*17*28),
+            nn.Linear(2048, 512*17*28),
             nn.LayerNorm(512*17*28),
             nn.ReLU(inplace=True),
         )
