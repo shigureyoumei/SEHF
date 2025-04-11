@@ -180,6 +180,7 @@ def main():
             patch_iter += 1
             optimizer.zero_grad()
             rgb_total = rgb_.permute(0, 4, 1, 2, 3).to(device) # 1*3*25*280*448
+            rgb_total = rgb_total / 255.0
             event_total = []
 
             for i in range(rgb_total.shape[2]):
@@ -204,8 +205,8 @@ def main():
             if scaler is not None:
                 with torch.autocast("cuda:0"):
                     output = SEHF(event_first, rgb_first, event_input)
-                    loss = F.mse_loss(output, rgb_gt)
-                    # loss = hybrid_loss(output, rgb_gt)
+                    # loss = F.mse_loss(output, rgb_gt)
+                    loss = hybrid_loss(output, rgb_gt)
                 print()
                 print(f'current patch: {patch_iter}, loss: {loss.item()}')
                 print()
@@ -217,8 +218,8 @@ def main():
                    
             else:
                 output = SEHF(event_first, rgb_first, event_input)
-                # loss = hybrid_loss(output, rgb_gt)
-                loss = F.mse_loss(output, rgb_gt)
+                loss = hybrid_loss(output, rgb_gt)
+                # loss = F.mse_loss(output, rgb_gt)
                 print()
                 print(f'current patch: {patch_iter}, loss: {loss.item()}')
                 print()
@@ -228,7 +229,7 @@ def main():
                 optimizer.step()
             train_loss += loss.item()
 
-            if patch_iter % 100 == 0 or loss < 100.0 :
+            if loss < 1.0 or patch_iter % 200 == 0:
                 output = output.squeeze(0).permute(1, 2, 3, 0).detach().cpu().numpy().astype(np.uint8)
                 for i in range(output.shape[0]):
                     img = output[i][:, :, [2, 1, 0]]
@@ -267,8 +268,8 @@ def main():
                 event_input = event_total[:, :, 1:, :, :]  # 2*24*448*280
 
                 output = SEHF(event_first, rgb_first, event_input)
-                loss = F.mse_loss(output, rgb_gt)
-                # loss = hybrid_loss(output, rgb_gt)
+                # loss = F.mse_loss(output, rgb_gt)
+                loss = hybrid_loss(output, rgb_gt)
                 test_loss += loss.item()
 
                 if test_patch_iter % 100 == 0:
