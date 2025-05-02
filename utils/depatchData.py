@@ -53,14 +53,14 @@ if __name__ == '__main__':
 
 
     idx = 1
-    save_dir = '/mnt/d/ball_data'
+    save_dir = '/mnt/d/ball_data_4'
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
     
     for h5_file in tqdm(h5_list, desc='Processing h5 files', total=len(h5_list)):
 
-        slice = 25
+        slice = 4
         start_idx = 0
         end_idx = start_idx + slice
 
@@ -83,13 +83,13 @@ if __name__ == '__main__':
 
             base_name = h5_file.split('/')[-1].split('.')[0]
 
-            for i in range(4):
+            for i in range(25):
                 
                 assert end_idx <= len(t_t)
                 
                 file_name = base_name + f'_{idx}.h5'
                 idx += 1
-                if idx == 5:
+                if idx == 26:
                     idx = 1
                 save_path = os.path.join(save_dir, file_name)
                 t_save = [np.array(t) for t in t_t[start_idx:end_idx]]
