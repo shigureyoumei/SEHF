@@ -72,22 +72,22 @@ class PoseResNet(nn.Module):
 
         # lstm
         # self.outclass = CFG.NUM_JOINTS
-        self.conv_ix_lstm = nn.Conv2d(256 + self.outclass, 256, kernel_size=3, padding=1, bias=True)
+        self.conv_ix_lstm = nn.Conv2d(256, 256, kernel_size=3, padding=1, bias=True)
         self.conv_ih_lstm = nn.Conv2d(256, 256, kernel_size=3, padding=1, bias=False)
 
-        self.conv_fx_lstm = nn.Conv2d(256 + self.outclass, 256, kernel_size=3, padding=1, bias=True)
+        self.conv_fx_lstm = nn.Conv2d(256, 256, kernel_size=3, padding=1, bias=True)
         self.conv_fh_lstm = nn.Conv2d(256, 256, kernel_size=3, padding=1, bias=False)
 
-        self.conv_ox_lstm = nn.Conv2d(256 + self.outclass, 256, kernel_size=3, padding=1, bias=True)
+        self.conv_ox_lstm = nn.Conv2d(256, 256, kernel_size=3, padding=1, bias=True)
         self.conv_oh_lstm = nn.Conv2d(256, 256, kernel_size=3, padding=1, bias=False)
 
-        self.conv_gx_lstm = nn.Conv2d(256 + self.outclass, 256, kernel_size=3, padding=1, bias=True)
+        self.conv_gx_lstm = nn.Conv2d(256, 256, kernel_size=3, padding=1, bias=True)
         self.conv_gh_lstm = nn.Conv2d(256, 256, kernel_size=3, padding=1, bias=False)
 
         # initial lstm
-        self.conv_gx_lstm0 = nn.Conv2d(256 + self.outclass, 256, kernel_size=3, padding=1)
-        self.conv_ix_lstm0 = nn.Conv2d(256 + self.outclass, 256, kernel_size=3, padding=1)
-        self.conv_ox_lstm0 = nn.Conv2d(256 + self.outclass, 256, kernel_size=3, padding=1)
+        self.conv_gx_lstm0 = nn.Conv2d(256, 256, kernel_size=3, padding=1)
+        self.conv_ix_lstm0 = nn.Conv2d(256, 256, kernel_size=3, padding=1)
+        self.conv_ox_lstm0 = nn.Conv2d(256, 256, kernel_size=3, padding=1)
 
         # used for deconv layers
         self.deconv_layers = self._make_deconv_layer(
