@@ -13,7 +13,7 @@ from dataset import *
 from torch.utils.data import DataLoader
 
 import model
-import model.SEHF
+import model.framework
 
 from loss import HybridLoss
 
@@ -102,11 +102,9 @@ def main():
 
     
 
-    SEHF = model.SEHF.SEHF()
-    print(SEHF)
-    print()
-
+    SEHF = model.framework.get_pose_net()
     SEHF.to(device)
+
 
 
 
@@ -122,11 +120,16 @@ def main():
                 else:
                     test_list.append(os.path.join(root, file))
 
+
+    print(f'Total train h5 files: {len(train_list)}')
+    print(f'Total test h5 files: {len(test_list)}')
+    print("-------------------------------------------------------")
+
     train_dataset = pairDateset(train_list, w, h)
     test_dataset = pairDateset(test_list, w, h)
 
-    train_loader = DataLoader(train_dataset, batch_size=1, shuffle=True, num_workers=0, pin_memory=False)
-    test_loader = DataLoader(test_dataset, batch_size=1, shuffle=True, num_workers=0, pin_memory=False)
+    train_loader = DataLoader(train_dataset, batch_size=2, shuffle=True, num_workers=0, pin_memory=False)
+    test_loader = DataLoader(test_dataset, batch_size=2, shuffle=True, num_workers=0, pin_memory=False)
 
     scaler = None
     if amp:
@@ -179,34 +182,36 @@ def main():
         for event_, rgb_ in tqdm(train_loader, desc='Train dataLoader', total=len(train_loader)):
             patch_iter += 1
             optimizer.zero_grad()
-            rgb_total = rgb_.permute(0, 4, 1, 2, 3).to(device) # 1*3*25*280*448
+            rgb_total = rgb_.permute(0, 1, 4, 2, 3) #2*4*3*280*448
             rgb_total = rgb_total / 255.0
-            event_total = []
+            event_total = event_.permute(0, 1, 2, 4, 3) #2*4*2*448*280
+            event_total = event_total / 255.0
 
-            for i in range(rgb_total.shape[2]):
-                t = event_['t'][i][0].to(torch.float32)
-                x = event_['x'][i][0].to(torch.float32)
-                y = event_['y'][i][0].to(torch.float32)
-                p = event_['p'][i][0].to(torch.float32)
-                event_total.append(stack_data(t, x, y, p, w, h))
-            event_total = torch.stack(event_total, dim=0).unsqueeze(0).permute(0, 2, 1, 4, 3).to(device) 
-            # 1*1*25*280*448
-            rgb_first = rgb_total[:, :, 0, :, :].to(torch.float32)   # 3*280*448
-            event_first = event_total[:, :, 0, :, :]   # 2*280*448    
+            # for i in range(rgb_total.shape[2]):
+            #     t = event_['t'][i][0].to(torch.float32)
+            #     x = event_['x'][i][0].to(torch.float32)
+            #     y = event_['y'][i][0].to(torch.float32)
+            #     p = event_['p'][i][0].to(torch.float32)
+            #     event_total.append(stack_data(t, x, y, p, w, h))
+            # event_total = torch.stack(event_total, dim=0).unsqueeze(0).permute(0, 2, 1, 4, 3).to(device) 
+            
+            rgb_first = rgb_total[:, 0, :, :, :].to(torch.float32)   # 3*280*448
+            # event_first = event_total[:, 0, :, :, :]   # 2*280*448    
 
-            rgb_gt = rgb_total[:, :, 1:, :, :].to(torch.float32) # 1*3*24*280*448
-            event_input = event_total[:, :, 1:, :, :]  # 1*2*24*280*448
-
-            rgb_first.to(device)
-            event_first.to(device)
-            rgb_gt.to(device)
-            event_input.to(device)
+            # rgb_gt = rgb_total[:, 1:, :, :, :].to(torch.float32) # 1*3*24*280*448
+            # event_input = event_total[:, 1:, :, :, :]  # 1*2*24*280*448
+            rgb_total = rgb_total.to(device)
+            rgb_first = rgb_first.to(device)
+            event_total = event_total.to(device)
+            # event_first.to(device)
+            # rgb_gt.to(device)
+            # event_input.to(device)
 
             if scaler is not None:
                 with torch.autocast("cuda:0"):
-                    output = SEHF(event_first, rgb_first, event_input)
+                    output = SEHF(event_total, rgb_first)
                     # loss = F.mse_loss(output, rgb_gt)
-                    loss = hybrid_loss(output, rgb_gt)
+                    loss = hybrid_loss(output, rgb_total)
                 print()
                 print(f'current patch: {patch_iter}, loss: {loss.item()}')
                 print()
@@ -217,24 +222,25 @@ def main():
                 scaler.update()
                    
             else:
-                output = SEHF(event_first, rgb_first, event_input)
-                loss = hybrid_loss(output, rgb_gt)
-                # loss = F.mse_loss(output, rgb_gt)
+                output = SEHF(event_total, rgb_first)
+                # loss = hybrid_loss(output, rgb_total)
+                loss = F.mse_loss(output, rgb_total)
                 print()
                 print(f'current patch: {patch_iter}, loss: {loss.item()}')
                 print()
                 loss.backward()
-                torch.nn.utils.clip_grad_value_(SEHF.parameters(), clip_value=5.0)
+                # torch.nn.utils.clip_grad_value_(SEHF.parameters(), clip_value=5.0)
 
                 optimizer.step()
             train_loss += loss.item()
 
-            if loss < 1.0 or patch_iter % 200 == 0:
-                output = output.squeeze(0).permute(1, 2, 3, 0).detach().cpu().numpy().astype(np.uint8)
-                for i in range(output.shape[0]):
-                    img = output[i][:, :, [2, 1, 0]]
-                    img = Image.fromarray(img)
-                    img.save(os.path.join(sample_check, f'epoch_{epoch}_train_{patch_iter}_frame_{i}_loss_{loss}.png'))
+            if loss < 1e-2 or patch_iter % 200 == 0:
+                output = output.detach().cpu().numpy().astype(np.uint8)
+                for b in range(output.shape[0]):
+                    for i in range(output.shape[1]):
+                        img = output[b][i]
+                        img = Image.fromarray(img)
+                        img.save(os.path.join(sample_check, f'epoch_{epoch}_train_{patch_iter}_batch_{b}_frame_{i}_loss_{loss}.png'))
                     
 
 
@@ -250,34 +256,41 @@ def main():
         with torch.no_grad():
             for event_total, rgb_total in tqdm(test_loader, desc='test dataLoader', total=len(test_loader)):
                 test_patch_iter += 1
-                rgb_total = rgb_.permute(0, 4, 1, 2, 3).to(device) # 1*3*25*448*280
-                event_total = []
+                rgb_total = rgb_.permute(0, 4, 1, 2, 3).to(device) 
+                rgb_total = rgb_total / 255.0
+                event_total = event_.permute(0, 1, 2, 4, 3).to(device) 
+                event_total = event_total / 255.0
 
-                for i in range(rgb_total.shape[2]):
-                    t = event_['t'][i][0].to(torch.float32)
-                    x = event_['x'][i][0].to(torch.float32)
-                    y = event_['y'][i][0].to(torch.float32)
-                    p = event_['p'][i][0].to(torch.float32)
-                    event_total.append(stack_data(t, x, y, p, w, h))
-                event_total = torch.stack(event_total, dim=0).unsqueeze(0).permute(0, 2, 1, 4, 3).to(device) 
+                # for i in range(rgb_total.shape[2]):
+                #     t = event_['t'][i][0].to(torch.float32)
+                #     x = event_['x'][i][0].to(torch.float32)
+                #     y = event_['y'][i][0].to(torch.float32)
+                #     p = event_['p'][i][0].to(torch.float32)
+                #     event_total.append(stack_data(t, x, y, p, w, h))
+                # event_total = torch.stack(event_total, dim=0).unsqueeze(0).permute(0, 2, 1, 4, 3).to(device) 
 
-                rgb_first = rgb_total[:, :, 0, :, :].to(torch.float16)   # 3*448*280
-                event_first = event_total[:, :, 0, :, :]   # 2*448*280    
+                rgb_first = rgb_total[:, 0, :, :, :].to(torch.float16)   # 3*448*280
+                # event_first = event_total[:, :, 0, :, :]   # 2*448*280    
 
-                rgb_gt = rgb_total[:, :, 1:, :, :].to(torch.float16)  # 1*3*24*448*280
-                event_input = event_total[:, :, 1:, :, :]  # 2*24*448*280
+                rgb_first = rgb_first.to(device)
+                rgb_total = rgb_total.to(device)
+                event_total = event_total.to(device)
 
-                output = SEHF(event_first, rgb_first, event_input)
-                # loss = F.mse_loss(output, rgb_gt)
-                loss = hybrid_loss(output, rgb_gt)
+                # rgb_gt = rgb_total[:, :, 1:, :, :].to(torch.float16)  # 1*3*24*448*280
+                # event_input = event_total[:, :, 1:, :, :]  # 2*24*448*280
+
+                output = SEHF(event_total, rgb_first)
+                loss = F.mse_loss(output, rgb_total)
+                # loss = hybrid_loss(output, rgb_total)
                 test_loss += loss.item()
 
                 if test_patch_iter % 100 == 0:
-                    output = output.squeeze(0).permute(1, 2, 3, 0).detach().cpu().numpy().astype(np.uint8)
-                    for i in range(output.shape[0]):
-                        img = output[i][:, :, [2, 1, 0]]
-                        img = Image.fromarray(img)
-                        img.save(os.path.join(sample_check, f'epoch_{epoch}_test_{patch_iter}_frame_{i}.png'))
+                    output = output.detach().cpu().numpy().astype(np.uint8)
+                    for b in range(output.shape[0]):
+                        for i in range(output.shape[1]):
+                            img = output[b][i]
+                            img = Image.fromarray(img)
+                            img.save(os.path.join(sample_check, f'epoch_{epoch}_test_{patch_iter}_batch_{b}_frame_{i}.png'))
 
 
         test_time = time.time()

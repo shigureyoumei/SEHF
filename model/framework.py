@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 import sys
 import model
+import model.Generator
 
 BN_MOMENTUM = 0.9
 sys.path.append("..")
@@ -47,6 +48,82 @@ class BasicBlock(nn.Module):
 
         return out
 
+class AttentionBlock(nn.Module):
+    """
+    ### Attention block
+
+    This is similar to [transformer multi-head attention](../../transformers/mha.html).
+    """
+	#只需要输入输入的数据的通道，因为后续的通道数不会发生改变
+    def __init__(self, n_channels: int, n_heads: int = 1, d_k: int = None, n_groups: int = 32):
+        """
+        * `n_channels` is the number of channels in the input（输入的图像的最后一个维度，图像的通道数）
+        * `n_heads` is the number of heads in multi-head attention（多头注意力的头的个数）
+        * `d_k` is the number of dimensions in each head（每个多头注意力的维度数）
+        * `n_groups` is the number of groups for [group normalization](../../normalization/group_norm/index.html)
+        """
+        super().__init__()
+
+        # Default `d_k`
+        if d_k is None:
+            d_k = n_channels
+       
+        #组归一化：你有一个包含64个通道的输入，并且你设置n_groups=8，那么每个组将包含8个通道，组归一化将在这8个通道上独立地计算均值和标准差，并进行归一化
+        self.norm = nn.GroupNorm(n_groups, n_channels)
+        
+        #将通过线性变化，将通道数增大为：多头注意力头数*每个头的维度，以及*3，用来后续划分为Q、K、V
+        self.projection = nn.Linear(n_channels, n_heads * d_k * 3)
+     
+        #输出为维度通过线性映射恢复为何输入一致
+        self.output = nn.Linear(n_heads * d_k, n_channels)
+        # Scale for dot-product attention
+        self.scale = d_k ** -0.5
+        #
+        self.n_heads = n_heads
+        self.d_k = d_k
+
+    def forward(self, x: torch.Tensor):
+        """
+        * `x` has shape `[batch_size, in_channels, height, width]`
+        * `t` has shape `[batch_size, time_channels]`
+        """
+        # `t` is not used, but it's kept in the arguments because for the attention layer function signature
+        # to match with `ResidualBlock`.
+        
+  
+        #首先得到输入数据的批量大小，通道维度，长，宽
+        batch_size, n_channels, height, width = x.shape
+       
+        #将除通道数的维度进行合并，然后将通道数放在最后面
+        x = x.view(batch_size, n_channels, -1).permute(0, 2, 1)
+    
+        #通过投影，将数据的维度进行提升，让其满足多头注意力的维度数
+        #然后将数据的维度变化为：批量大小，像素维度（比如长*宽），头数，3*头的维度
+        qkv = self.projection(x).view(batch_size, -1, self.n_heads, 3 * self.d_k)
+   
+        #将得到QKV按照最后一个维度进行维度划分，得到QKV矩阵
+        q, k, v = torch.chunk(qkv, 3, dim=-1)
+  
+        #QK进行点积计算，维度变为：批量，像素维度，像素维度，头数
+        attn = torch.einsum('bihd,bjhd->bijh', q, k) * self.scale
+        #将第二个维度归一化
+        attn = attn.softmax(dim=2)
+        #attn与v进行点积，实现加权计算，维度变为和输入的QKV一样：批量，像素大小，头数，每头维度
+        res = torch.einsum('bijh,bjhd->bihd', attn, v)
+        #将结果的最后两个维度合并：头数，像素大小，升维的维度
+        res = res.view(batch_size, -1, self.n_heads * self.d_k)
+        #将结果的维度调整为和输入一致
+        res = self.output(res)
+		#做残差连接
+        res += x
+		#将将结果的维度调整为和输入一致，将长和宽拆开
+        res = res.permute(0, 2, 1).view(batch_size, n_channels, height, width)
+
+        #
+        return res
+
+
+
 
 class PoseResNet(nn.Module):
     def __init__(self, block, layers,  **kwargs):
@@ -67,27 +144,27 @@ class PoseResNet(nn.Module):
 
         # self._myparams = nn.Parameter(torch.stack([torch.randn(self.CFG.HEATMAP_SIZE) for i in
         #                                            range((self.CFG.temporal * (self.CFG.temporal - 1)) // 2)]).unsqueeze(dim=0))
-        self._myparams = nn.Parameter(torch.stack([torch.randn([64, 64]) for i in
+        self._myparams = nn.Parameter(torch.stack([torch.randn([280, 448]) for i in
                                                    range((4 * (4 - 1)) // 2)]).unsqueeze(dim=0))
 
         # lstm
         # self.outclass = CFG.NUM_JOINTS
-        self.conv_ix_lstm = nn.Conv2d(256, 256, kernel_size=3, padding=1, bias=True)
+        self.conv_ix_lstm = nn.Conv2d(256+3, 256, kernel_size=3, padding=1, bias=True)
         self.conv_ih_lstm = nn.Conv2d(256, 256, kernel_size=3, padding=1, bias=False)
 
-        self.conv_fx_lstm = nn.Conv2d(256, 256, kernel_size=3, padding=1, bias=True)
+        self.conv_fx_lstm = nn.Conv2d(256+3, 256, kernel_size=3, padding=1, bias=True)
         self.conv_fh_lstm = nn.Conv2d(256, 256, kernel_size=3, padding=1, bias=False)
 
-        self.conv_ox_lstm = nn.Conv2d(256, 256, kernel_size=3, padding=1, bias=True)
+        self.conv_ox_lstm = nn.Conv2d(256+3, 256, kernel_size=3, padding=1, bias=True)
         self.conv_oh_lstm = nn.Conv2d(256, 256, kernel_size=3, padding=1, bias=False)
 
-        self.conv_gx_lstm = nn.Conv2d(256, 256, kernel_size=3, padding=1, bias=True)
+        self.conv_gx_lstm = nn.Conv2d(256+3, 256, kernel_size=3, padding=1, bias=True)
         self.conv_gh_lstm = nn.Conv2d(256, 256, kernel_size=3, padding=1, bias=False)
 
         # initial lstm
-        self.conv_gx_lstm0 = nn.Conv2d(256, 256, kernel_size=3, padding=1)
-        self.conv_ix_lstm0 = nn.Conv2d(256, 256, kernel_size=3, padding=1)
-        self.conv_ox_lstm0 = nn.Conv2d(256, 256, kernel_size=3, padding=1)
+        self.conv_gx_lstm0 = nn.Conv2d(256+3, 256, kernel_size=3, padding=1)
+        self.conv_ix_lstm0 = nn.Conv2d(256+3, 256, kernel_size=3, padding=1)
+        self.conv_ox_lstm0 = nn.Conv2d(256+3, 256, kernel_size=3, padding=1)
 
         # used for deconv layers
         self.deconv_layers = self._make_deconv_layer(
@@ -105,7 +182,10 @@ class PoseResNet(nn.Module):
             padding=0)
         )
 
-        self. generator = model.Generator(64)
+        self.generator = model.Generator.get_generator()
+        self.attn = AttentionBlock(4, n_heads=4, d_k=4, n_groups=2)
+        self.RGBprelayer = nn.Conv2d(3, 4, kernel_size=3, padding=1)
+        self.eventprelayer = nn.Conv2d(2, 4, kernel_size=3, padding=1)
 
     def _make_layer(self, block, planes, blocks, stride=1):
         downsample = None
@@ -232,13 +312,20 @@ class PoseResNet(nn.Module):
 
     def _resnet3(self, x):
         x = self.final_layer(x)
-        return x
+        return x #3*280*448
+    
 
-    def forward(self, images):
+
+    def forward(self, events, rgb):
         heat_maps = []
-        image0 = images[:, 0]
-        initial_heatmap = self._resnet3(self._resnet2(image0))
-        feture = self._resnet2(image0)
+        event0 = events[:, 0, :, :, :]
+        '这里加入rgb输入'
+        rgb = self.RGBprelayer(rgb)
+        event0 = self.eventprelayer(event0)
+        event0 = rgb + event0
+        # event0 = self.attn(event0)
+        initial_heatmap = self._resnet3(self._resnet2(event0))
+        feture = self._resnet2(event0)
         x = torch.cat([initial_heatmap, feture], dim=1)
         cell, hide = self.lstm0(x)
         heatmap = self._resnet3(hide)
@@ -250,8 +337,10 @@ class PoseResNet(nn.Module):
                 heatmap_new = torch.mul(heat_maps[j], self._myparams[:, num_heat]) + heatmap_new
                 num_heat += 1
             heatmap = heatmap_new
-            image = images[:, i]
-            feature = self._resnet2(image)
+            event = events[:, i]
+            event = self.eventprelayer(event)
+            # event = self.attn(event)
+            feature = self._resnet2(event)
             cell, hide = self.lstm(heatmap, feature, hide, cell)
             heatmap = self._resnet3(hide)
             heat_maps.append(heatmap)

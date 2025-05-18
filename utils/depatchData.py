@@ -40,6 +40,27 @@ def fetch_trigger(t, x, y, p, trigger):
 
     return triggered_t, triggered_x, triggered_y, triggered_p
 
+def stack_data(t, x, y, p, w, h):
+    map_on = np.zeros((w, h), dtype=np.float32)
+    map_off = np.zeros((w, h), dtype=np.float32)
+    assert t.shape == x.shape == y.shape == p.shape
+    len = t.shape[0]
+    for i in range(len):
+        if p[i] > 0:
+            map_on[int(x[i]), int(y[i])] += p[i]
+        else:
+            map_off[int(x[i]), int(y[i])] += 1
+
+    # Normalize map_on and map_off to the range 0-255
+    map_on = (map_on - np.min(map_on)) / (np.max(map_on) - np.min(map_on)) * 255
+    map_off = (map_off - np.min(map_off)) / (np.max(map_off) - np.min(map_off)) * 255
+    map_on = np.expand_dims(map_on, axis=0)
+    map_off = np.expand_dims(map_off, axis=0)
+
+    map = np.concatenate((map_on, map_off), axis=0)
+
+    return map
+
 
 if __name__ == '__main__':
     # 读取数据
@@ -53,7 +74,7 @@ if __name__ == '__main__':
 
 
     idx = 1
-    save_dir = '/mnt/d/ball_data_4'
+    save_dir = '/mnt/d/ball_data_4_ver2'
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
@@ -92,11 +113,16 @@ if __name__ == '__main__':
                 if idx == 26:
                     idx = 1
                 save_path = os.path.join(save_dir, file_name)
+                event_frames = []
                 t_save = [np.array(t) for t in t_t[start_idx:end_idx]]
                 x_save = [np.array(x) for x in t_x[start_idx:end_idx]]
                 y_save = [np.array(y) for y in t_y[start_idx:end_idx]]
                 p_save = [np.array(p) for p in t_p[start_idx:end_idx]]
                 rgb_save = rgb_aligned[start_idx:end_idx]
+
+                for t_, x_, y_, p_ in zip(t_save, x_save, y_save, p_save):
+                    event_frames.append(stack_data(t_, x_, y_, p_, 448, 280))
+                event_frames = np.stack(event_frames, axis=0)
 
                 start_idx += slice
                 end_idx += slice
@@ -110,6 +136,7 @@ if __name__ == '__main__':
                     dt = h5py.special_dtype(vlen=np.dtype('uint8'))
                     f.create_dataset('p', data=p_save, dtype=dt)
                     f.create_dataset('rgb', data=rgb_save)
+                    f.create_dataset('event_frames', data=event_frames)
 
                 print(f'Save h5 file at {save_path}')
     print(f'finished save {idx} files')
