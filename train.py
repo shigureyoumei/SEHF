@@ -171,6 +171,8 @@ def main():
     if not os.path.exists(sample_check):
         os.makedirs(sample_check)
     
+    train_totalpatch = 0
+    test_totalpatch = 0
 
     # training part
     for epoch in tqdm(range(start_epoch, epochs), desc='Epoch', total=(epochs-start_epoch)):
@@ -181,6 +183,7 @@ def main():
 
         for event_, rgb_ in tqdm(train_loader, desc='Train dataLoader', total=len(train_loader)):
             patch_iter += 1
+            totalpatch += 1
             optimizer.zero_grad()
             rgb_total = rgb_.permute(0, 1, 4, 2, 3) #2*4*3*280*448
             rgb_total = rgb_total / 255.0
@@ -234,6 +237,9 @@ def main():
                 optimizer.step()
             train_loss += loss.item()
 
+
+            writer.add_scalar('train_loss', loss.item(), train_totalpatch)
+
             if loss < 1e-2 or patch_iter % 200 == 0:
                 output = output.detach().cpu().numpy().astype(np.uint8)
                 for b in range(output.shape[0]):
@@ -246,7 +252,7 @@ def main():
 
         train_time = time.time()
         avg_train_loss = train_loss / patch_iter
-        writer.add_scalar('train_loss', avg_train_loss, epoch)
+        # writer.add_scalar('train_loss', avg_train_loss, epoch)
 
 
 
@@ -256,6 +262,7 @@ def main():
         with torch.no_grad():
             for event_total, rgb_total in tqdm(test_loader, desc='test dataLoader', total=len(test_loader)):
                 test_patch_iter += 1
+                test_totalpatch += 1
                 rgb_total = rgb_.permute(0, 4, 1, 2, 3).to(device) 
                 rgb_total = rgb_total / 255.0
                 event_total = event_.permute(0, 1, 2, 4, 3).to(device) 
@@ -284,6 +291,8 @@ def main():
                 # loss = hybrid_loss(output, rgb_total)
                 test_loss += loss.item()
 
+                writer.add_scalar('test_loss', loss.item(), test_totalpatch)
+
                 if test_patch_iter % 100 == 0:
                     output = output.detach().cpu().numpy().astype(np.uint8)
                     for b in range(output.shape[0]):
@@ -295,7 +304,7 @@ def main():
 
         test_time = time.time()
         avg_test_loss = test_loss / test_patch_iter
-        writer.add_scalar('test_loss',avg_test_loss, epoch)
+        # writer.add_scalar('test_loss',avg_test_loss, epoch)
 
         save_best = False
         if avg_test_loss < lowest_test_loss:
