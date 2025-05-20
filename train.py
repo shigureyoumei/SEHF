@@ -115,10 +115,13 @@ def main():
         for file in files:
             if file.endswith('.h5'):
                 no = file.split('.')[0].split('_')[1]
-                if no not in ['5', '10', '15', '20']:
-                    train_list.append(os.path.join(root, file))
-                else:
-                    test_list.append(os.path.join(root, file))
+                if int(no)>=1 and int(no)<=10:
+                    if no not in ['5', '10', '15', '20']:
+                        train_list.append(os.path.join(root, file))
+                    else:
+                        test_list.append(os.path.join(root, file))
+
+                    
 
 
     print(f'Total train h5 files: {len(train_list)}')
@@ -128,8 +131,8 @@ def main():
     train_dataset = pairDateset(train_list, w, h)
     test_dataset = pairDateset(test_list, w, h)
 
-    train_loader = DataLoader(train_dataset, batch_size=2, shuffle=True, num_workers=0, pin_memory=False)
-    test_loader = DataLoader(test_dataset, batch_size=2, shuffle=True, num_workers=0, pin_memory=False)
+    train_loader = DataLoader(train_dataset, batch_size=bs, shuffle=True, num_workers=0, pin_memory=False)
+    test_loader = DataLoader(test_dataset, batch_size=bs, shuffle=True, num_workers=0, pin_memory=False)
 
     scaler = None
     if amp:
@@ -183,7 +186,7 @@ def main():
 
         for event_, rgb_ in tqdm(train_loader, desc='Train dataLoader', total=len(train_loader)):
             patch_iter += 1
-            totalpatch += 1
+            train_totalpatch += 1
             optimizer.zero_grad()
             rgb_total = rgb_.permute(0, 1, 4, 2, 3) #2*4*3*280*448
             rgb_total = rgb_total / 255.0
@@ -226,6 +229,8 @@ def main():
                    
             else:
                 output = SEHF(event_total, rgb_first)
+                output = output * 255.0  # 将输出从0-1缩放到0-255
+                rgb_total = rgb_total * 255.0  # 将目标从0-1缩放到0-255
                 # loss = hybrid_loss(output, rgb_total)
                 loss = F.mse_loss(output, rgb_total)
                 print()
@@ -240,18 +245,23 @@ def main():
 
             writer.add_scalar('train_loss', loss.item(), train_totalpatch)
 
-            if loss < 1e-2 or patch_iter % 200 == 0:
+            if loss < 100 or patch_iter % 200 == 0:
                 output = output.detach().cpu().numpy().astype(np.uint8)
                 for b in range(output.shape[0]):
                     for i in range(output.shape[1]):
                         img = output[b][i]
+                        img = np.transpose(img, (1, 2, 0))  # 将通道维移到最后
                         img = Image.fromarray(img)
                         img.save(os.path.join(sample_check, f'epoch_{epoch}_train_{patch_iter}_batch_{b}_frame_{i}_loss_{loss}.png'))
                     
 
 
         train_time = time.time()
-        avg_train_loss = train_loss / patch_iter
+
+
+
+
+        # avg_train_loss = train_loss / patch_iter
         # writer.add_scalar('train_loss', avg_train_loss, epoch)
 
 
@@ -260,10 +270,10 @@ def main():
         test_loss = 0
         test_patch_iter = 0
         with torch.no_grad():
-            for event_total, rgb_total in tqdm(test_loader, desc='test dataLoader', total=len(test_loader)):
+            for event_, rgb_ in tqdm(test_loader, desc='test dataLoader', total=len(test_loader)):
                 test_patch_iter += 1
                 test_totalpatch += 1
-                rgb_total = rgb_.permute(0, 4, 1, 2, 3).to(device) 
+                rgb_total = rgb_.permute(0, 1, 4, 2, 3).to(device) 
                 rgb_total = rgb_total / 255.0
                 event_total = event_.permute(0, 1, 2, 4, 3).to(device) 
                 event_total = event_total / 255.0
@@ -276,7 +286,7 @@ def main():
                 #     event_total.append(stack_data(t, x, y, p, w, h))
                 # event_total = torch.stack(event_total, dim=0).unsqueeze(0).permute(0, 2, 1, 4, 3).to(device) 
 
-                rgb_first = rgb_total[:, 0, :, :, :].to(torch.float16)   # 3*448*280
+                rgb_first = rgb_total[:, 0, :, :, :].to(torch.float32)   # 3*448*280
                 # event_first = event_total[:, :, 0, :, :]   # 2*448*280    
 
                 rgb_first = rgb_first.to(device)
@@ -287,6 +297,9 @@ def main():
                 # event_input = event_total[:, :, 1:, :, :]  # 2*24*448*280
 
                 output = SEHF(event_total, rgb_first)
+                output = output * 255.0  # 将输出从0-1缩放到0-255
+                rgb_total = rgb_total * 255.0  # 将目标从0-1缩放到0-255
+                # 计算损失
                 loss = F.mse_loss(output, rgb_total)
                 # loss = hybrid_loss(output, rgb_total)
                 test_loss += loss.item()
@@ -298,8 +311,9 @@ def main():
                     for b in range(output.shape[0]):
                         for i in range(output.shape[1]):
                             img = output[b][i]
+                            img = np.transpose(img, (1, 2, 0))
                             img = Image.fromarray(img)
-                            img.save(os.path.join(sample_check, f'epoch_{epoch}_test_{patch_iter}_batch_{b}_frame_{i}.png'))
+                            img.save(os.path.join(sample_check, f'epoch_{epoch}_test_{test_patch_iter}_batch_{b}_frame_{i}_loss_{loss}.png'))
 
 
         test_time = time.time()

@@ -149,16 +149,16 @@ class PoseResNet(nn.Module):
 
         # lstm
         # self.outclass = CFG.NUM_JOINTS
-        self.conv_ix_lstm = nn.Conv2d(256+3, 256, kernel_size=3, padding=1, bias=True)
+        self.conv_ix_lstm = nn.Conv2d(256+256, 256, kernel_size=3, padding=1, bias=True)
         self.conv_ih_lstm = nn.Conv2d(256, 256, kernel_size=3, padding=1, bias=False)
 
-        self.conv_fx_lstm = nn.Conv2d(256+3, 256, kernel_size=3, padding=1, bias=True)
+        self.conv_fx_lstm = nn.Conv2d(256+256, 256, kernel_size=3, padding=1, bias=True)
         self.conv_fh_lstm = nn.Conv2d(256, 256, kernel_size=3, padding=1, bias=False)
 
-        self.conv_ox_lstm = nn.Conv2d(256+3, 256, kernel_size=3, padding=1, bias=True)
+        self.conv_ox_lstm = nn.Conv2d(256+256, 256, kernel_size=3, padding=1, bias=True)
         self.conv_oh_lstm = nn.Conv2d(256, 256, kernel_size=3, padding=1, bias=False)
 
-        self.conv_gx_lstm = nn.Conv2d(256+3, 256, kernel_size=3, padding=1, bias=True)
+        self.conv_gx_lstm = nn.Conv2d(256+256, 256, kernel_size=3, padding=1, bias=True)
         self.conv_gh_lstm = nn.Conv2d(256, 256, kernel_size=3, padding=1, bias=False)
 
         # initial lstm
@@ -318,6 +318,9 @@ class PoseResNet(nn.Module):
 
     def forward(self, events, rgb):
         heat_maps = []
+
+        medium = [] #1
+
         event0 = events[:, 0, :, :, :]
         '这里加入rgb输入'
         rgb = self.RGBprelayer(rgb)
@@ -326,22 +329,29 @@ class PoseResNet(nn.Module):
         # event0 = self.attn(event0)
         initial_heatmap = self._resnet3(self._resnet2(event0))
         feture = self._resnet2(event0)
+
+        medium.append(feture) #1
+
         x = torch.cat([initial_heatmap, feture], dim=1)
         cell, hide = self.lstm0(x)
         heatmap = self._resnet3(hide)
         heat_maps.append(heatmap)
         num_heat = 0
         for i in range(1, 4):
-            heatmap_new = torch.zeros(heatmap.size()).cuda()
+            heatmap_new = torch.zeros(feture.size()).cuda()  #1 heatmap.size -> feture.size
             for j in range(i):
-                heatmap_new = torch.mul(heat_maps[j], self._myparams[:, num_heat]) + heatmap_new
+                heatmap_new = torch.mul(medium[j], self._myparams[:, num_heat]) + heatmap_new #1 heat_maps[j] -> medium[j]
                 num_heat += 1
             heatmap = heatmap_new
             event = events[:, i]
             event = self.eventprelayer(event)
             # event = self.attn(event)
             feature = self._resnet2(event)
+            # feature = feature + feture
             cell, hide = self.lstm(heatmap, feature, hide, cell)
+
+            medium.append(hide) #1
+
             heatmap = self._resnet3(hide)
             heat_maps.append(heatmap)
         return torch.stack(heat_maps, dim=1)
