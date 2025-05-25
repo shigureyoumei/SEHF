@@ -8,6 +8,7 @@ import os
 import argparse
 import time
 from tqdm import tqdm
+from torch.optim.lr_scheduler import CosineAnnealingLR
 
 from dataset import *
 from torch.utils.data import DataLoader
@@ -51,7 +52,7 @@ def stack_data(t, x, y, p, w, h):
 def launch_tensorboard(logdir):
     # 启动 TensorBoard 进程
     tensorboard_process = subprocess.Popen(
-        ['/home/d203/micromamba/envs/SEHF/bin/tensorboard', '--logdir', logdir],
+        ['/home/d203_3090ti/micromamba/envs/SEHF/bin/tensorboard', '--logdir', logdir],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE
     )
@@ -142,6 +143,7 @@ def main():
     lowest_test_loss = 1e10
     best_epoch = -1
     optimizer = torch.optim.Adam(SEHF.parameters(), lr=lr)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=100, eta_min=1e-6)
     hybrid_loss = HybridLoss(lambda_mse=1.0, lambda_ssim=0.5, lambda_lpips=0.2)
 
     # whether to resume training
@@ -150,7 +152,7 @@ def main():
         SEHF.load_state_dict(checkpoint['SEHF'])
         optimizer.load_state_dict(checkpoint['optimizer'])
         start_epoch = checkpoint['epoch'] + 1
-        lowest_test_loss = checkpoint['max_test_acc']
+        lowest_test_loss = checkpoint['lowest_test_loss']
         best_epoch = checkpoint['best_epoch']
 
         
@@ -320,6 +322,10 @@ def main():
         avg_test_loss = test_loss / test_patch_iter
         # writer.add_scalar('test_loss',avg_test_loss, epoch)
 
+        
+        scheduler.step()
+
+        # save model
         save_best = False
         if avg_test_loss < lowest_test_loss:
             lowest_test_loss = avg_test_loss

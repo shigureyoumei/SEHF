@@ -20,6 +20,7 @@
                 // "--amp",
                 "--epochs","20",
                 "--bs","2",
+                // "--resume", "~/projects/SEHF/out_dir/2025_5_20_b2_lr0.01/last.pth"
 
 
 
