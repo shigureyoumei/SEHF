@@ -2,6 +2,23 @@ import os
 import h5py
 from tqdm import tqdm
 import numpy as np
+import cv2
+import matplotlib.pyplot as plt
+
+def downsample_img(img, target_h=140, target_w=224):
+    # img: (C, H, W)
+    w, h, c = img.shape
+    # cv2.resize 需要 (W, H) 顺序
+    # plt.imshow(img)
+    if h > w:
+        img = np.transpose(img, (2, 1, 0))
+    img_down = np.stack([
+        cv2.resize(img[i], (target_h, target_w), interpolation=cv2.INTER_AREA)
+        for i in range(c)
+    ], axis=0)
+    img_down = np.transpose(img_down, (2, 1, 0))  # 转换回 (H, W, C)
+    # plt.imshow(img_down)
+    return img_down
 
 
 def fetch_trigger(t, x, y, p, trigger):
@@ -58,6 +75,8 @@ def stack_data(t, x, y, p, w, h):
     map_off = np.expand_dims(map_off, axis=0)
 
     map = np.concatenate((map_on, map_off), axis=0)
+    map = np.transpose(map, (2, 1, 0))  # 转换为 (H, W, C)
+    map = np.fliplr(map)
 
     return map
 
@@ -74,7 +93,7 @@ if __name__ == '__main__':
 
 
     idx = 1
-    save_dir = '/mnt/d/ball_data_4_ver2'
+    save_dir = '/mnt/d/ball_data_4_ver3'
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
@@ -118,12 +137,35 @@ if __name__ == '__main__':
                 x_save = [np.array(x) for x in t_x[start_idx:end_idx]]
                 y_save = [np.array(y) for y in t_y[start_idx:end_idx]]
                 p_save = [np.array(p) for p in t_p[start_idx:end_idx]]
-                rgb_save = rgb_aligned[start_idx:end_idx]
+                rgb_frame = rgb_aligned[start_idx:end_idx]
 
                 for t_, x_, y_, p_ in zip(t_save, x_save, y_save, p_save):
                     event_frames.append(stack_data(t_, x_, y_, p_, 448, 280))
                 event_frames = np.stack(event_frames, axis=0)
 
+                # rgb_save = []
+                # event_save = []
+                # for i in range(slice):
+                #     rgb_save.append(downsample_img(rgb_frame[i], target_h=140, target_w=224))
+                #     event_save.append(downsample_img(event_frames[i], target_h=140, target_w=224))
+                # rgb_save = np.stack(rgb_save, axis=0)
+                # event_frames = np.stack(event_save, axis=0)
+
+                # show img
+                if idx == 2:
+                    count = 0
+                    for i in range(slice):
+                        # img = rgb_save[i]
+                        img = rgb_frame[i]
+                        event_i = event_frames[i]
+                        event_img = np.zeros((280, 448), dtype=np.int8)
+                        event_img = event_img + event_i[:, :, 0] + event_i[:, :, 1]
+                        mask_on = event_img > 0
+                        mask_off = event_img < 0
+                        img[mask_on] = [255, 0, 0]   # 红色
+                        img[mask_off] = [0, 0, 255]  # 蓝色
+                        cv2.imwrite(os.path.join('/mnt/d/show', f'{base_name}_{count}.png'), img)
+                        count += 1
                 start_idx += slice
                 end_idx += slice
 

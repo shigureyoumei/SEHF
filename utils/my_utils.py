@@ -424,14 +424,14 @@ def mask_events(_t, _x, _y, _p):
     y = np.array(_y, dtype='uint16')
     p = np.array(_p, dtype='uint8')
     t = np.array(_t, dtype='uint64')
-    mask = (x[0:total]>=95) & (x[0:total]<543) & (y[0:total]>=115) & (y[0:total]<395)
+    mask = (x[0:total]>=96) & (x[0:total]<544) & (y[0:total]>=115) & (y[0:total]<395)
     indices = np.where(mask)[0]
     filter_t = t[indices]
     filter_x = x[indices]
     filter_y = y[indices]
     filter_p = p[indices]
 
-    filter_x = filter_x - 95
+    filter_x = filter_x - 96
     filter_y = filter_y - 115
 
     return filter_t, filter_x, filter_y, filter_p
@@ -509,7 +509,7 @@ def save_h5(root, path, eh, ew, ox, oy, op, ot, trigger):
                         imgs = []
                         rgb_folder = os.path.join(root, dirnames)
                         rgb_files = [f for f in os.listdir(rgb_folder) if f.endswith(('.png', '.jpg', '.jpeg'))]
-                        rgb_files.sort()
+                        rgb_files.sort(key=lambda x: int(x.split('_')[1]))
                         for f in rgb_files:
                             img = cv2.imread(os.path.join(rgb_folder, f))
                             imgs.append(img)
