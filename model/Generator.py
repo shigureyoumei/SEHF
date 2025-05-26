@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 import torch.nn.functional as F
-
+import model.transformer as tf
 
 class DoubleConv(nn.Module):
     """(convolution => [BN] => ReLU) * 2"""
@@ -84,11 +84,11 @@ class Generator(nn.Module):
         super().__init__()
         self.n_channels = n_channels # 输入通道数
         self.bilinear = bilinear # 上采样方式
-        self.inc = DoubleConv(n_channels, 64)  # n_channels=3 3*24*448*280->64*24*448*280
-        self.down1 = Down(64, 128)   # 64*24*448*280->128*24*224*140 
-        self.down2 = Down(128, 256) # 128*24*224*140->256*24*112*70
-        self.down3 = Down(256, 512) # 256*24*112*70->512*24*56*35
-        self.down4 = Down(512, 512) # 512*24*56*35->512*24*28*17
+        self.inc = DoubleConv(n_channels, 64)  # n_channels=3 3*24*224*140->64*24*224*140
+        self.down1 = Down(64, 128)   # 64*24*224*140->128*24*112*70
+        self.down2 = Down(128, 256) # 128*24*112*70->256*24*56*35
+        self.down3 = Down(256, 512) # 256*24*56*35->512*24*28*18
+        self.down4 = Down(512, 512) # 512*24*28*18->512*24*14*9
 
         # self.lstm = LSTM(num_layers=3)
 
@@ -96,13 +96,16 @@ class Generator(nn.Module):
         self.up2 = Up(512, 128, bilinear)
         self.up3 = Up(256, 64, bilinear)
         self.up4 = Up(128, 64, bilinear)
-        self.outc = OutConv(64, 256) # 输出层
+        self.outc = OutConv(64, 3) # 输出层
+
+        self.colorInsert = tf.get_transformer(patch_size=4, depth=1, dim=64, heads=16, mlp_dim=128, dim_head=8, dropout=0.1, emb_dropout=0.1)
 
         
         
  
     def forward(self, x): # x: 2*4*280*448
-        # x = self.attn(x) # 4*24*448*280
+
+        x = self.colorInsert(x)
         x1 = self.inc(x) #  64*280*448
 
         # 四层左部分
