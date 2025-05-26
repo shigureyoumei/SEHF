@@ -190,9 +190,9 @@ def main():
             patch_iter += 1
             train_totalpatch += 1
             optimizer.zero_grad()
-            rgb_total = rgb_.permute(0, 1, 4, 2, 3) #2*4*3*280*448
+            rgb_total = rgb_.permute(0, 1, 4, 2, 3) #2*4*3*140*224
             rgb_total = rgb_total / 255.0
-            event_total = event_.permute(0, 1, 2, 4, 3) #2*4*2*448*280
+            event_total = event_.permute(0, 1, 2, 4, 3) #2*4*2*140*224
             event_total = event_total / 255.0
 
             # for i in range(rgb_total.shape[2]):
@@ -203,7 +203,7 @@ def main():
             #     event_total.append(stack_data(t, x, y, p, w, h))
             # event_total = torch.stack(event_total, dim=0).unsqueeze(0).permute(0, 2, 1, 4, 3).to(device) 
             
-            rgb_first = rgb_total[:, 0, :, :, :].to(torch.float32)   # 3*280*448
+            rgb_first = rgb_total[:, 0, :, :, :].to(torch.float32)   # 3*140*224
             # event_first = event_total[:, 0, :, :, :]   # 2*280*448    
 
             # rgb_gt = rgb_total[:, 1:, :, :, :].to(torch.float32) # 1*3*24*280*448

@@ -77,7 +77,7 @@ class Transformer(nn.Module):
         return x
 
 class ViT(nn.Module):
-    def __init__(self, *, image_size, patch_size, dim = 64, depth = 1, heads = 16, mlp_dim = 128, dim_head = 8, dropout = 0.1, emb_dropout = 0.1): #dim_head 64->8
+    def __init__(self, *, image_size, patch_size, dim = 64, depth = 3, heads = 16, mlp_dim = 128, dim_head = 8, dropout = 0.1, emb_dropout = 0.1): #dim_head 64->8
         super().__init__()
         channels, image_height, image_width = image_size   # 5,280,448
         patch_height, patch_width = pair(patch_size)       # 8*8   4*4
@@ -110,18 +110,23 @@ class ViT(nn.Module):
         self.transformer = Transformer(dim, depth, heads, dim_head, mlp_dim, dropout)
 
     def forward(self, img):
-        x = self.conv1(img)                     # img 1 5 280 448 -> 1 16 280 448
-        x = self.to_patch_embedding(x)          # 1 320 1024   # 1 1960 1024   # 1 7840 256
+        x = self.conv1(img)                     # img 2 5 140 224 -> 2 16 140 224
+        x = self.to_patch_embedding(x)          # 1 320 1024   # 2 1960 64   # 1 7840 256
         b, n, _ = x.shape                       # 1 320  # 1 1960   # 1 7840
 
-        x += self.pos_embedding[:, :(n + 1)]    # (1,7840,64)
-        x = self.dropout(x)                     # (1,7840,64)
+        x += self.pos_embedding[:, :(n + 1)]    # (2,1960,64)
+        x = self.dropout(x)                     # (2,1960,64)
 
-        x = self.transformer(x)                 # (1,320,1024)
+        x = self.transformer(x)                 # (2,1960,64)
 
         x = self.to_img(x)
 
-        return x                                # (1 256 64 80)
+        return x                                # (2 5 140 224)
+
+
+def get_transformer(image_size, patch_size, depth, dim=64, heads=16, mlp_dim=128, dim_head=8, dropout=0.1, emb_dropout=0.1):
+    return ViT(image_size=image_size, patch_size=patch_size, depth=depth, dim=dim, heads=heads, mlp_dim=mlp_dim, dim_head=dim_head, dropout=dropout, emb_dropout=emb_dropout)
+
 
 
 if __name__ == '__main__':
@@ -130,14 +135,18 @@ if __name__ == '__main__':
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f'Using device: {device}')
 
-    v = ViT(image_size = (5,280,448), patch_size = 4)
+    v1 = ViT(image_size = (5,140,224), patch_size = 4, depth=1)
 
-    v = v.to(device)
+    v2 = ViT(image_size = (5,140,224), patch_size = 4, depth=3)
 
-    img = torch.randn(2, 5, 280, 448)
+    v1 = v1.to(device)
+    v2 = v2.to(device)
+
+    img = torch.randn(8, 5, 140, 224)
 
     img = img.to(device)
 
-    preds = v(img)         # (1, 256, 64, 80)
+    x = v1(img)         # (1, 256, 64, 80)
+    preds = v2(x)       # (1, 5, 140, 224)
 
     print(preds.shape)
