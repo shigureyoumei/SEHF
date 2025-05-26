@@ -16,7 +16,7 @@
 
                 //---------train----------
                 // "--data","data",
-                "--data","/mnt/d/ball_data_4_ver2",
+                "--data","/mnt/d/ball_data_4_ver1",
                 // "--amp",
                 "--epochs","20",
                 "--bs","2",

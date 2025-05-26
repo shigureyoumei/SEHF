@@ -178,6 +178,7 @@ def main():
     
     train_totalpatch = 0
     test_totalpatch = 0
+    
 
     # training part
     for epoch in tqdm(range(start_epoch, epochs), desc='Epoch', total=(epochs-start_epoch)):
@@ -192,7 +193,7 @@ def main():
             optimizer.zero_grad()
             rgb_total = rgb_.permute(0, 1, 4, 2, 3) #2*4*3*140*224
             rgb_total = rgb_total / 255.0
-            event_total = event_.permute(0, 1, 2, 4, 3) #2*4*2*140*224
+            event_total = event_.permute(0, 1, 4, 2, 3) #2*4*2*140*224
             event_total = event_total / 255.0
 
             # for i in range(rgb_total.shape[2]):
@@ -230,6 +231,7 @@ def main():
                 scaler.update()
                    
             else:
+                # output = SEHF(event_total, rgb_first, show_img)
                 output = SEHF(event_total, rgb_first)
                 output = output * 255.0  # 将输出从0-1缩放到0-255
                 rgb_total = rgb_total * 255.0  # 将目标从0-1缩放到0-255
@@ -255,7 +257,7 @@ def main():
                         img = np.transpose(img, (1, 2, 0))  # 将通道维移到最后
                         img = Image.fromarray(img)
                         img.save(os.path.join(sample_check, f'epoch_{epoch}_train_{patch_iter}_batch_{b}_frame_{i}_loss_{loss}.png'))
-                    
+               
 
 
         train_time = time.time()
@@ -271,13 +273,14 @@ def main():
         SEHF.eval()
         test_loss = 0
         test_patch_iter = 0
+
         with torch.no_grad():
             for event_, rgb_ in tqdm(test_loader, desc='test dataLoader', total=len(test_loader)):
                 test_patch_iter += 1
                 test_totalpatch += 1
                 rgb_total = rgb_.permute(0, 1, 4, 2, 3).to(device) 
                 rgb_total = rgb_total / 255.0
-                event_total = event_.permute(0, 1, 2, 4, 3).to(device) 
+                event_total = event_.permute(0, 1, 4, 2, 3).to(device) 
                 event_total = event_total / 255.0
 
                 # for i in range(rgb_total.shape[2]):
@@ -316,7 +319,7 @@ def main():
                             img = np.transpose(img, (1, 2, 0))
                             img = Image.fromarray(img)
                             img.save(os.path.join(sample_check, f'epoch_{epoch}_test_{test_patch_iter}_batch_{b}_frame_{i}_loss_{loss}.png'))
-
+                    
 
         test_time = time.time()
         avg_test_loss = test_loss / test_patch_iter
