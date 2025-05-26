@@ -3,7 +3,22 @@ import os
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import numpy as np
+import cv2
 
+def downsample_img(img, target_h=140, target_w=224):
+    # img: (C, H, W)
+    w, h, c = img.shape
+    # cv2.resize 需要 (W, H) 顺序
+    # plt.imshow(img)
+    if h > w:
+        img = np.transpose(img, (2, 1, 0))
+    img_down = np.stack([
+        cv2.resize(img[i], (target_h, target_w), interpolation=cv2.INTER_AREA)
+        for i in range(c)
+    ], axis=0)
+    img_down = np.transpose(img_down, (2, 1, 0))  # 转换回 (H, W, C)
+    # plt.imshow(img_down)
+    return img_down
 
 def stack_data(t, x, y, p, w, h):
     map_on = np.zeros((w, h), dtype=np.float32)
@@ -80,7 +95,7 @@ def print_h5_contents(file_path):
 
 # 使用示例
 # file_path = '/mnt/e/Program/PROJECT/dataset/DATASETS/try6/try6.h5'
-file_path = '/mnt/d/Storage/ball1/1/ball1_1.h5'
+file_path = '/mnt/d/Storage/try/Storage_try.h5'
 # file_path = '/mnt/d/ball_data_4_ver2/ball1_1_10.h5'
 
 
@@ -125,61 +140,60 @@ with h5py.File(file_path, 'r') as f:
             event_frames.append(stack_data(t_, x_, y_, p_, 448, 280))
         event_frames = np.stack(event_frames, axis=0)
 
-        # rgb_save = []
-        # event_save = []
-        # for i in range(slice):
-        #     rgb_save.append(downsample_img(rgb_frame[i], target_h=140, target_w=224))
-        #     event_save.append(downsample_img(event_frames[i], target_h=140, target_w=224))
-        # rgb_save = np.stack(rgb_save, axis=0)
-        # event_frames = np.stack(event_save, axis=0)
+    rgb_save = []
+    event_save = []
+    for i in range(25):
+        rgb_save.append(downsample_img(rgb_frame[i], target_h=140, target_w=224))
+        event_save.append(downsample_img(event_frames[i], target_h=140, target_w=224))
+    rgb_save = np.stack(rgb_save, axis=0)
+    event_frames = np.stack(event_save, axis=0)
 
         # show img
         
 
-        fig, axs = plt.subplots(1, 5, figsize=(20, 4))
-        for i in range(5):
-            axs[i].imshow(rgb_frame[i])
-            axs[i].set_title(f'Frame {i}')
-            axs[i].axis('off')
+        # fig, axs = plt.subplots(1, 5, figsize=(20, 4))
+        # for i in range(5):
+        #     axs[i].imshow(rgb_frame[i])
+        #     axs[i].set_title(f'Frame {i}')
+        #     axs[i].axis('off')
+        # plt.tight_layout()
+        # plt.show()
+
+
+
+
+   
+    for i in range(25):
+        # img = rgb_save[i]
+        img = rgb_save[i]
+        event_i = event_frames[i]
+        event_img = np.zeros((140, 224), dtype=np.int8)
+        event_img = event_img + event_i[:, :, 0] - event_i[:, :, 1]
+        mask_on = event_img > 0
+        mask_off = event_img < 0
+        img_masked = img.copy()
+        img_masked[mask_on] = [255, 0, 0]   # 红色
+        img_masked[mask_off] = [0, 0, 255]  # 蓝色
+        
+        fig, axs = plt.subplots(1, 3, figsize=(15, 5))
+
+        axs[0].imshow(img)
+        axs[0].set_title('Original img')
+        axs[0].axis('off')
+
+        axs[1].imshow(event_img, cmap='gray')
+        axs[1].set_title('Event img')
+        axs[1].axis('off')
+
+        axs[2].imshow(img_masked)
+        axs[2].set_title('Masked img')
+        axs[2].axis('off')
+
         plt.tight_layout()
         plt.show()
 
-
-
-
-        # count = 0
-        # for i in range(25):
-        #     # img = rgb_save[i]
-        #     img = rgb_frame[i]
-        #     event_i = event_frames[i]
-        #     event_img = np.zeros((280, 448), dtype=np.int8)
-        #     event_img = event_img + event_i[:, :, 0] - event_i[:, :, 1]
-        #     mask_on = event_img > 0
-        #     mask_off = event_img < 0
-        #     img_masked = img.copy()
-        #     img_masked[mask_on] = [255, 0, 0]   # 红色
-        #     img_masked[mask_off] = [0, 0, 255]  # 蓝色
-            
-        #     fig, axs = plt.subplots(1, 3, figsize=(15, 5))
-
-        #     axs[0].imshow(img)
-        #     axs[0].set_title('Original img')
-        #     axs[0].axis('off')
-
-        #     axs[1].imshow(event_img, cmap='gray')
-        #     axs[1].set_title('Event img')
-        #     axs[1].axis('off')
-
-        #     axs[2].imshow(img_masked)
-        #     axs[2].set_title('Masked img')
-        #     axs[2].axis('off')
-
-        #     plt.tight_layout()
-        #     plt.show()
-
-        #     count += 1
-        # start_idx += slice
-        # end_idx += slice
+    # start_idx += slice
+    # end_idx += slice
 
 
 

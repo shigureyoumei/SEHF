@@ -93,7 +93,7 @@ if __name__ == '__main__':
 
 
     idx = 1
-    save_dir = '/mnt/d/ball_data_4_ver3'
+    save_dir = '/mnt/d/ball_data_4_ver1'
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
@@ -143,31 +143,31 @@ if __name__ == '__main__':
                     event_frames.append(stack_data(t_, x_, y_, p_, 448, 280))
                 event_frames = np.stack(event_frames, axis=0)
 
-                # rgb_save = []
-                # event_save = []
-                # for i in range(slice):
-                #     rgb_save.append(downsample_img(rgb_frame[i], target_h=140, target_w=224))
-                #     event_save.append(downsample_img(event_frames[i], target_h=140, target_w=224))
-                # rgb_save = np.stack(rgb_save, axis=0)
-                # event_frames = np.stack(event_save, axis=0)
+                rgb_save = []
+                event_save = []
+                for i in range(slice):
+                    rgb_save.append(downsample_img(rgb_frame[i], target_h=140, target_w=224))
+                    event_save.append(downsample_img(event_frames[i], target_h=140, target_w=224))
+                rgb_save = np.stack(rgb_save, axis=0)
+                event_frames = np.stack(event_save, axis=0)
 
                 # show img
-                if idx == 2:
-                    count = 0
-                    for i in range(slice):
-                        # img = rgb_save[i]
-                        img = rgb_frame[i]
-                        event_i = event_frames[i]
-                        event_img = np.zeros((280, 448), dtype=np.int8)
-                        event_img = event_img + event_i[:, :, 0] + event_i[:, :, 1]
-                        mask_on = event_img > 0
-                        mask_off = event_img < 0
-                        img[mask_on] = [255, 0, 0]   # 红色
-                        img[mask_off] = [0, 0, 255]  # 蓝色
-                        cv2.imwrite(os.path.join('/mnt/d/show', f'{base_name}_{count}.png'), img)
-                        count += 1
-                start_idx += slice
-                end_idx += slice
+                # if idx == 2:
+                #     count = 0
+                #     for i in range(slice):
+                #         # img = rgb_save[i]
+                #         img = rgb_save[i]
+                #         event_i = event_frames[i]
+                #         event_img = np.zeros((140, 224), dtype=np.int8)
+                #         event_img = event_img + event_i[:, :, 0] - event_i[:, :, 1]
+                #         mask_on = event_img > 0
+                #         mask_off = event_img < 0
+                #         img[mask_on] = [255, 0, 0]   # 红色
+                #         img[mask_off] = [0, 0, 255]  # 蓝色
+                #         cv2.imwrite(os.path.join('/mnt/d/show', f'{base_name}_{count}.png'), img)
+                #         count += 1
+                # start_idx += slice
+                # end_idx += slice
 
                 with h5py.File(save_path, 'w') as f:
                     dt = h5py.special_dtype(vlen=np.dtype('uint32'))
