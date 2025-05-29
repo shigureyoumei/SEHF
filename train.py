@@ -24,6 +24,8 @@ import webbrowser
 import datetime as dt
 from PIL import Image
 
+# from utils.showimg import show_img
+
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning, module="torchmetrics.utilities.prints")
 
@@ -116,7 +118,7 @@ def main():
         for file in files:
             if file.endswith('.h5'):
                 no = file.split('.')[0].split('_')[1]
-                if int(no)>=1 and int(no)<=10:
+                if int(no)>=11 and int(no)<=20:
                     if no not in ['5', '10', '15', '20']:
                         train_list.append(os.path.join(root, file))
                     else:
@@ -143,8 +145,8 @@ def main():
     lowest_test_loss = 1e10
     best_epoch = -1
     optimizer = torch.optim.Adam(SEHF.parameters(), lr=lr)
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=100, eta_min=1e-6)
-    hybrid_loss = HybridLoss(lambda_mse=1.0, lambda_ssim=0.5, lambda_lpips=0.2)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=70, eta_min=1e-6)
+    hybrid_loss = HybridLoss(lambda_mse=0.3, lambda_lpips=0.7)
 
     # whether to resume training
     if len(resume) > 0:
@@ -179,13 +181,13 @@ def main():
     train_totalpatch = 0
     test_totalpatch = 0
     
-
     # training part
     for epoch in tqdm(range(start_epoch, epochs), desc='Epoch', total=(epochs-start_epoch)):
         starttime = time.time()
         SEHF.train()
         train_loss = 0
         patch_iter = 0
+
 
         for event_, rgb_ in tqdm(train_loader, desc='Train dataLoader', total=len(train_loader)):
             patch_iter += 1
@@ -195,6 +197,9 @@ def main():
             rgb_total = rgb_total / 255.0
             event_total = event_.permute(0, 1, 4, 2, 3) #2*4*2*140*224
             event_total = event_total / 255.0
+
+            # if patch_iter % 200 == 0:
+            #     show = True
 
             # for i in range(rgb_total.shape[2]):
             #     t = event_['t'][i][0].to(torch.float32)
@@ -222,7 +227,7 @@ def main():
                     # loss = F.mse_loss(output, rgb_gt)
                     loss = hybrid_loss(output, rgb_total)
                 print()
-                print(f'current patch: {patch_iter}, loss: {loss.item()}')
+                print(f'epoch: {epoch} patch: {patch_iter}, loss: {loss.item()}')
                 print()
                 scaler.scale(loss).backward()
                 scaler.unscale_(optimizer)  # 取消缩放以便裁剪
@@ -235,8 +240,8 @@ def main():
                 output = SEHF(event_total, rgb_first)
                 output = output * 255.0  # 将输出从0-1缩放到0-255
                 rgb_total = rgb_total * 255.0  # 将目标从0-1缩放到0-255
-                # loss = hybrid_loss(output, rgb_total)
-                loss = F.mse_loss(output, rgb_total)
+                loss = hybrid_loss(output, rgb_total)
+                # loss = F.mse_loss(output, rgb_total)
                 print()
                 print(f'current patch: {patch_iter}, loss: {loss.item()}')
                 print()
@@ -249,15 +254,16 @@ def main():
 
             writer.add_scalar('train_loss', loss.item(), train_totalpatch)
 
-            if loss < 100 or patch_iter % 200 == 0:
+            if loss < 4 or patch_iter % 500 == 0:
                 output = output.detach().cpu().numpy().astype(np.uint8)
                 for b in range(output.shape[0]):
                     for i in range(output.shape[1]):
                         img = output[b][i]
                         img = np.transpose(img, (1, 2, 0))  # 将通道维移到最后
+                        img = img[..., ::-1]  # 将RGB通道移到最后
                         img = Image.fromarray(img)
-                        img.save(os.path.join(sample_check, f'epoch_{epoch}_train_{patch_iter}_batch_{b}_frame_{i}_loss_{loss}.png'))
-               
+                        img.save(os.path.join(sample_check, f'epoch_{epoch}_train_{patch_iter}_batch_{b}_frame_{i}_loss_{loss.item()}.png'))
+                
 
 
         train_time = time.time()
@@ -283,6 +289,7 @@ def main():
                 event_total = event_.permute(0, 1, 4, 2, 3).to(device) 
                 event_total = event_total / 255.0
 
+                
                 # for i in range(rgb_total.shape[2]):
                 #     t = event_['t'][i][0].to(torch.float32)
                 #     x = event_['x'][i][0].to(torch.float32)
@@ -305,9 +312,12 @@ def main():
                 output = output * 255.0  # 将输出从0-1缩放到0-255
                 rgb_total = rgb_total * 255.0  # 将目标从0-1缩放到0-255
                 # 计算损失
-                loss = F.mse_loss(output, rgb_total)
-                # loss = hybrid_loss(output, rgb_total)
+                # loss = F.mse_loss(output, rgb_total)
+                loss = hybrid_loss(output, rgb_total)
                 test_loss += loss.item()
+                print()
+                print(f'epoch: {epoch} patch: {test_patch_iter}, loss: {loss.item()}')
+                print()
 
                 writer.add_scalar('test_loss', loss.item(), test_totalpatch)
 
@@ -317,9 +327,10 @@ def main():
                         for i in range(output.shape[1]):
                             img = output[b][i]
                             img = np.transpose(img, (1, 2, 0))
+                            img = img[..., ::-1]  # 将RGB通道移到最后
                             img = Image.fromarray(img)
-                            img.save(os.path.join(sample_check, f'epoch_{epoch}_test_{test_patch_iter}_batch_{b}_frame_{i}_loss_{loss}.png'))
-                    
+                            img.save(os.path.join(sample_check, f'test_{test_patch_iter}_epoch_{epoch}_batch_{b}_frame_{i}_loss_{loss.item()}.png'))
+                   
 
         test_time = time.time()
         avg_test_loss = test_loss / test_patch_iter
@@ -349,6 +360,11 @@ def main():
         torch.save(checkpoint, os.path.join(out_dir, 'last.pth'))
 
         print(f'epoch = {epoch}, train_loss ={train_loss: .4f}, test_loss ={test_loss: .4f}, epoch_span ={(test_time-starttime)//60}min{(test_time-starttime)%60}s, train_time ={(train_time-starttime)//60}min{(train_time-starttime)%60}s, lowest_test_loss ={lowest_test_loss: .4f}_epoch({best_epoch})')
+        elapsed_time = time.time() - starttime
+        total_elapsed_time = (epoch - start_epoch + 1) * elapsed_time
+        hours = int(total_elapsed_time // 3600)
+        seconds = int(total_elapsed_time % 3600)
+        print(f'total training time = {hours}h {seconds}s')
         print(f'escape time = {(dt.datetime.now() + dt.timedelta(seconds=(time.time() - starttime) * (epochs - epoch))).strftime("%Y-%m-%d %H:%M:%S")}\n')
 
     # show result in tensorboard

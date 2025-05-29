@@ -98,7 +98,7 @@ class Generator(nn.Module):
         self.up4 = Up(128, 64, bilinear)
         self.outc = OutConv(64, 3) # 输出层
 
-        self.colorInsert = tf.get_transformer(image_size=(256, 140, 224), patch_size=4, depth=1, out_channel=128, dim=64, heads=16, mlp_dim=128, dim_head=64, dropout=0.1, emb_dropout=0.1)
+        self.colorInsert = tf.get_transformer(image_size=(256, 140, 224), patch_size=4, depth=1, out_channel=128)
 
         
         

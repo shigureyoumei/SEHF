@@ -7,7 +7,7 @@ import sys
 import model
 import model.Generator
 import model.transformer as tf
-from utils.showimg import show_img
+
 
 BN_MOMENTUM = 0.9
 sys.path.append("..")
@@ -111,10 +111,13 @@ class PoseResNet(nn.Module):
 
         self.generator = model.Generator.get_generator()
 
-        self.REClipper = tf.get_transformer(image_size=(5, 140, 224), patch_size=4, depth=3, out_channel=256, dim=64, heads=16, mlp_dim=128, dim_head=64, dropout=0.1, emb_dropout=0.1)
+        self.REClipper = tf.get_transformer(image_size=(5, 140, 224), patch_size=4, depth=3, out_channel=256)
         self.upper = nn.Conv2d(2, 64, 1)
         self.lower = nn.Conv2d(256, 64, 1)
-        self.eventClipper = tf.get_transformer(image_size=(128, 140, 224), patch_size=4, depth=1, out_channel=5, dim=64, heads=16, mlp_dim=128, dim_head=64, dropout=0.1, emb_dropout=0.1)
+        self.eventClipper = tf.get_transformer(image_size=(128, 140, 224), patch_size=4, depth=1, out_channel=5)
+        self.LN5 = nn.LayerNorm(5)
+        self.LN3 = nn.LayerNorm(3)
+        self.LN256 = nn.LayerNorm(256)
 
     def _make_layer(self, block, planes, blocks, stride=1):
         downsample = None
@@ -235,14 +238,21 @@ class PoseResNet(nn.Module):
         # x = self.layer3(x)
         # x = self.layer4(x)
         # x = self.deconv_layers(x)
-        x = self.REClipper(x)   #(2 256 140 224)
+        x = x.permute(0, 2, 3, 1)
+        x = self.LN5(x)  # Normalize the input
+        x = x.permute(0, 3, 1, 2)
 
+        x = self.REClipper(x)   #(2 256 140 224)
 
         return x
 
-    def _resnet3(self, x):
+    def _resnet3(self, x):  # ConvNet2
+        x = x.permute(0, 2, 3, 1)  # Change the order of dimensions
+        x = self.LN256(x)
+        x = x.permute(0, 3, 1, 2)  # Change the order of dimensions back
         # x = self.final_layer(x)
         x = self.generator(x)
+
         return x #3*140*224
     
 
@@ -255,7 +265,7 @@ class PoseResNet(nn.Module):
         event0 = events[:, 0, :, :, :]  #2*2*140*224
         '这里加入rgb输入'
         event0 = torch.cat([event0, rgb], dim=1)    # #2*5*140*224
-        
+     
         # event0 = self.attn(event0)
         initial_heatmap = self._resnet3(self._resnet2(event0))  # (2 3 140 224)
         feture = self._resnet2(event0)  # (2 256 140 224)
