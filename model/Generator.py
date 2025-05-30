@@ -98,14 +98,14 @@ class Generator(nn.Module):
         self.up4 = Up(128, 64, bilinear)
         self.outc = OutConv(64, 3) # 输出层
 
-        self.colorInsert = tf.get_transformer(image_size=(256, 140, 224), patch_size=4, depth=1, out_channel=128)
+        # self.colorInsert = tf.get_transformer(image_size=(256, 140, 224), patch_size=4, depth=1, out_channel=128)
 
         
         
  
     def forward(self, x): # x: 2*256*140*224
 
-        x = self.colorInsert(x)
+        # x = self.colorInsert(x)
         x1 = self.inc(x) #  64*280*448
 
         # 四层左部分

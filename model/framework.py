@@ -114,7 +114,7 @@ class PoseResNet(nn.Module):
         self.REClipper = tf.get_transformer(image_size=(5, 140, 224), patch_size=4, depth=3, out_channel=256)
         self.upper = nn.Conv2d(2, 64, 1)
         self.lower = nn.Conv2d(256, 64, 1)
-        self.eventClipper = tf.get_transformer(image_size=(128, 140, 224), patch_size=4, depth=1, out_channel=5)
+        self.eventClipper = tf.get_transformer(image_size=(512, 140, 224), patch_size=4, depth=3, out_channel=128)
         self.LN5 = nn.LayerNorm(5)
         self.LN3 = nn.LayerNorm(3)
         self.LN256 = nn.LayerNorm(256)
@@ -228,16 +228,7 @@ class PoseResNet(nn.Module):
         return cell1, hide_1
 
     def _resnet2(self, x):  # ConvNet1
-        # x = self.conv1(x)
-        # x = self.bn1(x)
-        # x = self.relu(x)
-        # x = self.maxpool(x)
-
-        # x = self.layer1(x)
-        # x = self.layer2(x)
-        # x = self.layer3(x)
-        # x = self.layer4(x)
-        # x = self.deconv_layers(x)
+        
         x = x.permute(0, 2, 3, 1)
         x = self.LN5(x)  # Normalize the input
         x = x.permute(0, 3, 1, 2)
@@ -250,7 +241,7 @@ class PoseResNet(nn.Module):
         x = x.permute(0, 2, 3, 1)  # Change the order of dimensions
         x = self.LN256(x)
         x = x.permute(0, 3, 1, 2)  # Change the order of dimensions back
-        # x = self.final_layer(x)
+        
         x = self.generator(x)
 
         return x #3*140*224
@@ -269,7 +260,7 @@ class PoseResNet(nn.Module):
         # event0 = self.attn(event0)
         initial_heatmap = self._resnet3(self._resnet2(event0))  # (2 3 140 224)
         feture = self._resnet2(event0)  # (2 256 140 224)
-        feture_1 = self.lower(feture)  #2*64*140*224
+        # feture_1 = self.lower(feture)  #2*64*140*22411
         
         # medium.append(feture) #1
 
@@ -289,13 +280,17 @@ class PoseResNet(nn.Module):
             # event = self.eventprelayer(event)
             # event = self.attn(event)
 
-            event = self.upper(event)  #2*64*140*224
-            event = torch.cat([event, feture_1], dim=1) #2*128*140*224
-            event = self.eventClipper(event)  #2*5*140*224
+            # event = self.upper(event)  #2*64*140*224
+            # event = torch.cat([event, feture_1], dim=1) #2*128*140*224
+            # event = self.eventClipper(event)  #2*5*140*224
 
             feature = self._resnet2(event)
             # feature = feature + feture
             cell, hide = self.lstm(heatmap, feature, hide, cell)
+
+            event = torch.cat([event, feture], dim=1) # #2*512*140*224
+
+            event = self.eventClipper(event)  #2*32*140*224
 
             # medium.append(hide) #1
 
