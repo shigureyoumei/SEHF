@@ -112,9 +112,9 @@ class PoseResNet(nn.Module):
         self.generator = model.Generator.get_generator()
 
         self.REClipper = tf.get_transformer(image_size=(5, 140, 224), patch_size=4, depth=3, out_channel=256)
-        self.upper = nn.Conv2d(2, 64, 1)
+        self.upper = nn.Conv2d(2, 5, 1)
         self.lower = nn.Conv2d(256, 64, 1)
-        self.eventClipper = tf.get_transformer(image_size=(512, 140, 224), patch_size=4, depth=3, out_channel=128)
+        self.eventClipper = tf.get_transformer(image_size=(261, 140, 224), patch_size=4, depth=3, out_channel=256)
         self.LN5 = nn.LayerNorm(5)
         self.LN3 = nn.LayerNorm(3)
         self.LN256 = nn.LayerNorm(256)
@@ -280,7 +280,7 @@ class PoseResNet(nn.Module):
             # event = self.eventprelayer(event)
             # event = self.attn(event)
 
-            # event = self.upper(event)  #2*64*140*224
+            event = self.upper(event)  #2*5*140*224
             # event = torch.cat([event, feture_1], dim=1) #2*128*140*224
             # event = self.eventClipper(event)  #2*5*140*224
 
@@ -288,9 +288,9 @@ class PoseResNet(nn.Module):
             # feature = feature + feture
             cell, hide = self.lstm(heatmap, feature, hide, cell)
 
-            event = torch.cat([event, feture], dim=1) # #2*512*140*224
+            event = torch.cat([event, feture], dim=1) # #2*261*140*224
 
-            event = self.eventClipper(event)  #2*32*140*224
+            event = self.eventClipper(event)  #2*256*140*224
 
             # medium.append(hide) #1
 

@@ -126,5 +126,5 @@ class Generator(nn.Module):
         return result
     
 
-def get_generator(n_channels=128, bilinear=True):
+def get_generator(n_channels=256, bilinear=True):
     return Generator(n_channels, bilinear)

@@ -243,7 +243,7 @@ def main():
                 loss = hybrid_loss(output, rgb_total)
                 # loss = F.mse_loss(output, rgb_total)
                 print()
-                print(f'current patch: {patch_iter}, loss: {loss.item()}')
+                print(f'epoch: {epoch}, current patch: {patch_iter}, loss: {loss.item()}')
                 print()
                 loss.backward()
                 # torch.nn.utils.clip_grad_value_(SEHF.parameters(), clip_value=5.0)
@@ -254,7 +254,7 @@ def main():
 
             writer.add_scalar('train_loss', loss.item(), train_totalpatch)
 
-            if loss < 4 or patch_iter % 500 == 0:
+            if loss < 3 or patch_iter % 500 == 0:
                 output = output.detach().cpu().numpy().astype(np.uint8)
                 for b in range(output.shape[0]):
                     for i in range(output.shape[1]):
