@@ -18,9 +18,10 @@
                 // "--data","data",
                 "--data","/mnt/d/ball_data_4_ver1",
                 // "--amp",
-                "--epochs","20",
+                "--epochs","49",
                 "--bs","2",
-                // "--resume", "~/projects/SEHF/out_dir/2025_5_20_b2_lr0.01/last.pth"
+                "--lr","0.0001",
+                "--resume", "~/projects/SEHF/out_dir/2025_5_29_b2_lr0.0001/last.pth"
 
 
 
