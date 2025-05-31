@@ -54,7 +54,8 @@ def stack_data(t, x, y, p, w, h):
 def launch_tensorboard(logdir):
     # 启动 TensorBoard 进程
     tensorboard_process = subprocess.Popen(
-        ['/home/d203_3090ti/micromamba/envs/SEHF/bin/tensorboard', '--logdir', logdir],
+        # ['/home/d203_3090ti/micromamba/envs/SEHF/bin/tensorboard', '--logdir', logdir],
+        ['/home/naran/micromamba/envs/SEHF/bin/tensorboard', '--logdir', logdir],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE
     )
@@ -145,7 +146,7 @@ def main():
     lowest_test_loss = 1e10
     best_epoch = -1
     optimizer = torch.optim.Adam(SEHF.parameters(), lr=lr)
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=70, eta_min=1e-6)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=100, eta_min=1e-6)
     hybrid_loss = HybridLoss(lambda_mse=0.3, lambda_lpips=0.7)
 
     # whether to resume training
@@ -254,15 +255,15 @@ def main():
 
             writer.add_scalar('train_loss', loss.item(), train_totalpatch)
 
-            if loss < 3 or patch_iter % 500 == 0:
-                output = output.detach().cpu().numpy().astype(np.uint8)
-                for b in range(output.shape[0]):
-                    for i in range(output.shape[1]):
-                        img = output[b][i]
-                        img = np.transpose(img, (1, 2, 0))  # 将通道维移到最后
-                        img = img[..., ::-1]  # 将RGB通道移到最后
-                        img = Image.fromarray(img)
-                        img.save(os.path.join(sample_check, f'epoch_{epoch}_train_{patch_iter}_batch_{b}_frame_{i}_loss_{loss.item()}.png'))
+            # if loss < 3 or patch_iter % 500 == 0:
+            #     output = output.detach().cpu().numpy().astype(np.uint8)
+            #     for b in range(output.shape[0]):
+            #         for i in range(output.shape[1]):
+            #             img = output[b][i]
+            #             img = np.transpose(img, (1, 2, 0))  # 将通道维移到最后
+            #             img = img[..., ::-1]  # 将RGB通道移到最后
+            #             img = Image.fromarray(img)
+            #             img.save(os.path.join(sample_check, f'epoch_{epoch}_train_{patch_iter}_batch_{b}_frame_{i}_loss_{loss.item()}.png'))
                 
 
 
@@ -321,7 +322,7 @@ def main():
 
                 writer.add_scalar('test_loss', loss.item(), test_totalpatch)
 
-                if test_patch_iter % 100 == 0:
+                if test_patch_iter % 100 == 0 or loss < 5:
                     output = output.detach().cpu().numpy().astype(np.uint8)
                     for b in range(output.shape[0]):
                         for i in range(output.shape[1]):
