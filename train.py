@@ -7,6 +7,7 @@ from torch.utils.tensorboard import SummaryWriter
 import os
 import argparse
 import time
+import torchvision
 from tqdm import tqdm
 from torch.optim.lr_scheduler import CosineAnnealingLR
 
@@ -30,6 +31,14 @@ import warnings
 warnings.filterwarnings("ignore", category=FutureWarning, module="torchmetrics.utilities.prints")
 
 alpha = 1e-1
+
+fmap_in = dict()
+fmap_out = dict()
+def get_fmap_hook(name):
+    def hook(module, input, output):
+        fmap_in[name] = input[0].detach().clone().cpu()
+        fmap_out[name] = output[0].detach().clone().cpu()
+    return hook
 
 def stack_data(t, x, y, p, w, h):
     map_on = torch.zeros((w, h), dtype=torch.float32)
@@ -60,10 +69,10 @@ def launch_tensorboard(logdir):
     )
     
     # 等待 TensorBoard 启动
-    time.sleep(5)  # 等待 5 秒，确保 TensorBoard 完全启动
+    # time.sleep(5)  # 等待 5 秒，确保 TensorBoard 完全启动
     
     # 打开浏览器
-    webbrowser.open('http://localhost:6006/')
+    # webbrowser.open('http://localhost:6006/')
 
 
     # 在终端按ctrl+c时，终止 TensorBoard 进程
@@ -109,7 +118,9 @@ def main():
     SEHF.to(device)
 
 
-
+    # register hook for feature map
+    SEHF.REClipper.register_forward_hook(get_fmap_hook('REClipper'))
+    SEHF.eventClipper.register_forward_hook(get_fmap_hook('eventClipper'))
 
     # load data
     train_list = []
@@ -118,7 +129,7 @@ def main():
         for file in files:
             if file.endswith('.h5'):
                 no = file.split('.')[0].split('_')[1]
-                if int(no)>=11 and int(no)<=20:
+                if int(no)>=0 and int(no)<=10:
                     if no not in ['5', '10', '15', '20']:
                         train_list.append(os.path.join(root, file))
                     else:
@@ -181,6 +192,10 @@ def main():
     train_totalpatch = 0
     test_totalpatch = 0
     
+
+    # launch tensorboard
+    tensorboard_process = launch_tensorboard(out_dir)
+
     # training part
     for epoch in tqdm(range(start_epoch, epochs), desc='Epoch', total=(epochs-start_epoch)):
         starttime = time.time()
@@ -198,28 +213,13 @@ def main():
             event_total = event_.permute(0, 1, 4, 2, 3) #2*4*2*140*224
             event_total = event_total / 255.0
 
-            # if patch_iter % 200 == 0:
-            #     show = True
-
-            # for i in range(rgb_total.shape[2]):
-            #     t = event_['t'][i][0].to(torch.float32)
-            #     x = event_['x'][i][0].to(torch.float32)
-            #     y = event_['y'][i][0].to(torch.float32)
-            #     p = event_['p'][i][0].to(torch.float32)
-            #     event_total.append(stack_data(t, x, y, p, w, h))
-            # event_total = torch.stack(event_total, dim=0).unsqueeze(0).permute(0, 2, 1, 4, 3).to(device) 
             
             rgb_first = rgb_total[:, 0, :, :, :].to(torch.float32)   # 3*140*224
-            # event_first = event_total[:, 0, :, :, :]   # 2*280*448    
-
-            # rgb_gt = rgb_total[:, 1:, :, :, :].to(torch.float32) # 1*3*24*280*448
-            # event_input = event_total[:, 1:, :, :, :]  # 1*2*24*280*448
+            
             rgb_total = rgb_total.to(device)
             rgb_first = rgb_first.to(device)
             event_total = event_total.to(device)
-            # event_first.to(device)
-            # rgb_gt.to(device)
-            # event_input.to(device)
+
 
             if scaler is not None:
                 with torch.autocast("cuda:0"):
@@ -243,7 +243,7 @@ def main():
                 loss = hybrid_loss(output, rgb_total)
                 # loss = F.mse_loss(output, rgb_total)
                 print()
-                print(f'current patch: {patch_iter}, loss: {loss.item()}')
+                print(f'epoch: {epoch} current patch: {patch_iter}, loss: {loss.item()}')
                 print()
                 loss.backward()
                 # torch.nn.utils.clip_grad_value_(SEHF.parameters(), clip_value=5.0)
@@ -254,15 +254,23 @@ def main():
 
             writer.add_scalar('train_loss', loss.item(), train_totalpatch)
 
-            if loss < 4 or patch_iter % 500 == 0:
-                output = output.detach().cpu().numpy().astype(np.uint8)
-                for b in range(output.shape[0]):
-                    for i in range(output.shape[1]):
-                        img = output[b][i]
-                        img = np.transpose(img, (1, 2, 0))  # 将通道维移到最后
-                        img = img[..., ::-1]  # 将RGB通道移到最后
-                        img = Image.fromarray(img)
-                        img.save(os.path.join(sample_check, f'epoch_{epoch}_train_{patch_iter}_batch_{b}_frame_{i}_loss_{loss.item()}.png'))
+            if patch_iter % 500 == 0:
+                B, T, C, H, W = output.shape
+                output_reshape = output.reshape(B * T, C, H, W)
+                output_reshape = output_reshape[:, [2, 1, 0], :, :]  
+                img_grid = torchvision.utils.make_grid(output_reshape, nrow=B, normalize=True, scale_each=True)
+                writer.add_image(f'train_output_epoch_{epoch}_patch_{patch_iter}', img_grid, train_totalpatch)
+                RECfmap = fmap_out['REClipper']
+                eventClipperfmap = fmap_out['eventClipper']
+                layer_names = ['REClipper', 'eventClipper']
+                layer_idx = 0
+                for detachTensor in [RECfmap, eventClipperfmap]:
+                    if detachTensor.size(0) > 8:
+                        detachTensor = detachTensor[:8, :, :]
+                    detachTensor = detachTensor.unsqueeze(1)
+                    Tensorgrid = torchvision.utils.make_grid(detachTensor, nrow=4, normalize=True, scale_each=True)
+                    writer.add_image(f'train_featuremap_epoch_{epoch}_patch_{patch_iter}_layer_{layer_names[layer_idx]}', Tensorgrid, train_totalpatch)
+                    layer_idx += 1
                 
 
 
@@ -321,16 +329,23 @@ def main():
 
                 writer.add_scalar('test_loss', loss.item(), test_totalpatch)
 
-                if test_patch_iter % 100 == 0:
-                    output = output.detach().cpu().numpy().astype(np.uint8)
-                    for b in range(output.shape[0]):
-                        for i in range(output.shape[1]):
-                            img = output[b][i]
-                            img = np.transpose(img, (1, 2, 0))
-                            img = img[..., ::-1]  # 将RGB通道移到最后
-                            img = Image.fromarray(img)
-                            img.save(os.path.join(sample_check, f'test_{test_patch_iter}_epoch_{epoch}_batch_{b}_frame_{i}_loss_{loss.item()}.png'))
-                   
+                if test_patch_iter % 100 == 0 or loss < 5:
+                    B, T, C, H, W = output.shape
+                    output_reshape = output.reshape(B * T, C, H, W)
+                    output_reshape = output_reshape[:, [2, 1, 0], :, :]
+                    img_grid = torchvision.utils.make_grid(output_reshape, nrow=B, normalize=True, scale_each=True)
+                    writer.add_image(f'test_output_epoch_{epoch}_patch_{patch_iter}', img_grid, test_totalpatch)
+                    RECfmap = fmap_out['REClipper']
+                    eventClipperfmap = fmap_out['eventClipper']
+                    layer_names = ['REClipper', 'eventClipper']
+                    layer_idx = 0
+                    for detachTensor in [RECfmap, eventClipperfmap]:
+                        if detachTensor.size(0) > 8:
+                            detachTensor = detachTensor[:8, :, :]
+                        detachTensor = detachTensor.unsqueeze(1)
+                        Tensorgrid = torchvision.utils.make_grid(detachTensor, nrow=4, normalize=True, scale_each=True)
+                        writer.add_image(f'test_featuremap_epoch_{epoch}_patch_{patch_iter}_layer_{layer_names[layer_idx]}', Tensorgrid, test_totalpatch)
+                        layer_idx += 1
 
         test_time = time.time()
         avg_test_loss = test_loss / test_patch_iter
@@ -355,9 +370,9 @@ def main():
         }
 
         if save_best:
-            torch.save(checkpoint, os.path.join(out_dir, 'best.pth'))
+            torch.save(checkpoint, os.path.join(out_dir, f'best{epoch}.pth'))
 
-        torch.save(checkpoint, os.path.join(out_dir, 'last.pth'))
+        torch.save(checkpoint, os.path.join(out_dir, f'last{epoch}.pth'))
 
         print(f'epoch = {epoch}, train_loss ={train_loss: .4f}, test_loss ={test_loss: .4f}, epoch_span ={(test_time-starttime)//60}min{(test_time-starttime)%60}s, train_time ={(train_time-starttime)//60}min{(train_time-starttime)%60}s, lowest_test_loss ={lowest_test_loss: .4f}_epoch({best_epoch})')
         elapsed_time = time.time() - starttime
@@ -368,7 +383,7 @@ def main():
         print(f'escape time = {(dt.datetime.now() + dt.timedelta(seconds=(time.time() - starttime) * (epochs - epoch))).strftime("%Y-%m-%d %H:%M:%S")}\n')
 
     # show result in tensorboard
-    tensorboard_process = launch_tensorboard(out_dir)
+    # tensorboard_process = launch_tensorboard(out_dir)
     # 等待用户手动关闭 TensorBoard
     try:
         while True:
