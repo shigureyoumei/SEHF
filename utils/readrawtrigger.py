@@ -28,33 +28,6 @@ def save_frame_every_trigger(frame_path, h, w, x, y, p, t, trigger):
         cv2.imwrite(frame_name, img)
         frame_id += 1
 
-    # total = len(trigger)
-    # start = 0
-    # end = 1
-
-    # idx_start = 0
-    # while end < total:
-    #     while t[idx_start] < trigger[start]:
-    #         idx_start += 1
-    #     idx_end = idx_start + 1
-    #     while t[idx_end] < trigger[end]:
-    #         idx_end += 1
-    #         if idx_end == len(t) - 1:
-    #             break
-    #     x_temp = np.array(x[idx_start:idx_end], dtype='uint16')
-    #     y_temp = np.array(y[idx_start:idx_end], dtype='uint16')
-    #     p_temp = np.array(p[idx_start:idx_end], dtype='uint16')
-
-    #     # x_temp = x[idx_start:idx_end]
-    #     # y_temp = y[idx_start:idx_end]
-    #     # p_temp = p[idx_start:idx_end]
-        
-    #     img = render(x_temp, y_temp, p_temp, h, w)
-    #     frame_name = os.path.join(frame_path, str(frame_id).zfill(6) + '.png')
-    #     cv2.imwrite(frame_name, img)
-    #     frame_id += 1
-    #     start += 2
-    #     end += 2
         
     print('------------------------------------')
     print("Over! total frame: " + str(frame_id-1))

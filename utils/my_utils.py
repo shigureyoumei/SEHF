@@ -509,7 +509,12 @@ def save_h5(root, path, eh, ew, ox, oy, op, ot, trigger):
                         imgs = []
                         rgb_folder = os.path.join(root, dirnames)
                         rgb_files = [f for f in os.listdir(rgb_folder) if f.endswith(('.png', '.jpg', '.jpeg'))]
-                        rgb_files.sort(key=lambda x: int(x.split('_')[1]))
+                        rgb_files.sort(key=lambda x: int(x.split('_')[1].split('.')[0]))  # Sort by the number in the filename
+
+                        print('--------------------------------------')
+                        print('after sorted:')
+                        print(rgb_files)
+                        print('--------------------------------------')
                         for f in rgb_files:
                             img = cv2.imread(os.path.join(rgb_folder, f))
                             imgs.append(img)

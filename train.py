@@ -289,6 +289,7 @@ def main():
                 
                 B, T, C, H, W = output.shape
                 output_reshape = output.reshape(B * T, C, H, W)
+                output_reshape = output_reshape[:, ::-1, :, :]
                 img_grid = torchvision.utils.make_grid(output_reshape, nrow=B, normalize=True, scale_each=True)
                 writer.add_image(f'train_output_epoch_{epoch}_patch_{patch_iter}', img_grid, train_totalpatch)
                 RECfmap = fmap_out['REClipper']
@@ -370,6 +371,7 @@ def main():
                             # img.save(os.path.join(sample_check, f'test_{test_patch_iter}_epoch_{epoch}_batch_{b}_frame_{i}_loss_{loss.item()}.png'))
                     B, T, C, H, W = output.shape
                     output_reshape = output.reshape(B * T, C, H, W)
+                    output_reshape = output_reshape[:, ::-1, :, :]
                     img_grid = torchvision.utils.make_grid(output_reshape, nrow=B, normalize=True, scale_each=True)
                     writer.add_image(f'test_output_epoch_{epoch}_patch_{patch_iter}', img_grid, test_totalpatch)
                     RECfmap = fmap_out['REClipper']

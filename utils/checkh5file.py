@@ -4,6 +4,7 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 import numpy as np
 import cv2
+import matplotlib.pyplot as plt
 
 def downsample_img(img, target_h=140, target_w=224):
     # img: (C, H, W)
@@ -95,58 +96,59 @@ def print_h5_contents(file_path):
 
 # 使用示例
 # file_path = '/mnt/e/Program/PROJECT/dataset/DATASETS/try6/try6.h5'
-file_path = '/mnt/d/Storage/try/Storage_try.h5'
+# file_path = '/mnt/d/Storage/try/test/1.h5'
 # file_path = '/mnt/d/ball_data_4_ver2/ball1_1_10.h5'
-
+file_path = '~/projects/dataset/try/test/1.h5'
+file_path = os.path.expanduser(file_path)
 
 print_h5_contents(file_path)
 
 
 
-with h5py.File(file_path, 'r') as f:
-    rgb = f['rgb/rgb_aligned'][:]
-    p = f['event/original/p'][:]
-    t = f['event/original/t'][:]
-    x = f['event/original/x'][:]
-    y = f['event/original/y'][:]
+# with h5py.File(file_path, 'r') as f:
+#     rgb = f['rgb/rgb_aligned'][:]
+#     p = f['event/original/p'][:]
+#     t = f['event/original/t'][:]
+#     x = f['event/original/x'][:]
+#     y = f['event/original/y'][:]
 
-    trigger = f['event/trigger'][:]
+#     trigger = f['event/trigger'][:]
 
-    rgb_aligned = f['rgb/rgb_aligned'][:]
+#     rgb_aligned = f['rgb/rgb_aligned'][:]
 
-    t_t, t_x, t_y, t_p = fetch_trigger(t, x, y, p, trigger)
+#     t_t, t_x, t_y, t_p = fetch_trigger(t, x, y, p, trigger)
 
-    assert len(t_t) == len(t_x) == len(t_y) == len(t_p)
-    assert len(t_t) == 100
+#     assert len(t_t) == len(t_x) == len(t_y) == len(t_p)
+#     assert len(t_t) == 100
 
-    start_idx = 0
-    end_idx = start_idx + 25
+#     start_idx = 0
+#     end_idx = start_idx + 25
 
-    idx = 0
-    for i in range(25):
+#     idx = 0
+#     for i in range(25):
                 
-        assert end_idx <= len(t_t) 
-        idx += 1
-        if idx == 26:
-            idx = 1
-        event_frames = []
-        t_save = [np.array(t) for t in t_t[start_idx:end_idx]]
-        x_save = [np.array(x) for x in t_x[start_idx:end_idx]]
-        y_save = [np.array(y) for y in t_y[start_idx:end_idx]]
-        p_save = [np.array(p) for p in t_p[start_idx:end_idx]]
-        rgb_frame = rgb_aligned[start_idx:end_idx]
+#         assert end_idx <= len(t_t) 
+#         idx += 1
+#         if idx == 26:
+#             idx = 1
+#         event_frames = []
+#         t_save = [np.array(t) for t in t_t[start_idx:end_idx]]
+#         x_save = [np.array(x) for x in t_x[start_idx:end_idx]]
+#         y_save = [np.array(y) for y in t_y[start_idx:end_idx]]
+#         p_save = [np.array(p) for p in t_p[start_idx:end_idx]]
+#         rgb_frame = rgb_aligned[start_idx:end_idx]
 
-        for t_, x_, y_, p_ in zip(t_save, x_save, y_save, p_save):
-            event_frames.append(stack_data(t_, x_, y_, p_, 448, 280))
-        event_frames = np.stack(event_frames, axis=0)
+#         for t_, x_, y_, p_ in zip(t_save, x_save, y_save, p_save):
+#             event_frames.append(stack_data(t_, x_, y_, p_, 448, 280))
+#         event_frames = np.stack(event_frames, axis=0)
 
-    rgb_save = []
-    event_save = []
-    for i in range(25):
-        rgb_save.append(downsample_img(rgb_frame[i], target_h=140, target_w=224))
-        event_save.append(downsample_img(event_frames[i], target_h=140, target_w=224))
-    rgb_save = np.stack(rgb_save, axis=0)
-    event_frames = np.stack(event_save, axis=0)
+#     rgb_save = []
+#     event_save = []
+#     for i in range(25):
+#         rgb_save.append(downsample_img(rgb_frame[i], target_h=140, target_w=224))
+#         event_save.append(downsample_img(event_frames[i], target_h=140, target_w=224))
+#     rgb_save = np.stack(rgb_save, axis=0)
+#     event_frames = np.stack(event_save, axis=0)
 
         # show img
         
@@ -160,37 +162,71 @@ with h5py.File(file_path, 'r') as f:
         # plt.show()
 
 
+with h5py.File(file_path, 'r') as f:
+    rgb = f['rgb'][:]
+    event = f['event'][:]
+
+
+
+    fig, axs = plt.subplots(1, 4, figsize=(16, 4))
+    for i in range(4):
+        axs[i].imshow(rgb[i].astype('uint8'))
+        axs[i].set_title(f'RGB {i}')
+        axs[i].axis('off')
+    plt.tight_layout()
+    plt.show()
+
+    # 显示16张event图片（每张event的第0通道和第1通道分别显示）
+    fig, axs = plt.subplots(2, 8, figsize=(24, 6))
+    for i in range(16):
+        ax = axs[i // 8, i % 8]
+        # 只显示第0通道（或第1通道），如 event[i, :, :, 0]
+        ax.imshow(event[i, :, :, 0], cmap='gray')
+        ax.set_title(f'Event {i} (ch0)')
+        ax.axis('off')
+    plt.tight_layout()
+    plt.show()
+
+    # 如果你想同时显示event的两个通道，可以再画一组
+    fig, axs = plt.subplots(2, 8, figsize=(24, 6))
+    for i in range(16):
+        ax = axs[i // 8, i % 8]
+        ax.imshow(event[i, :, :, 1], cmap='gray')
+        ax.set_title(f'Event {i} (ch1)')
+        ax.axis('off')
+    plt.tight_layout()
+    plt.show()
 
 
    
-    for i in range(25):
-        # img = rgb_save[i]
-        img = rgb_save[i]
-        event_i = event_frames[i]
-        event_img = np.zeros((140, 224), dtype=np.int8)
-        event_img = event_img + event_i[:, :, 0] - event_i[:, :, 1]
-        mask_on = event_img > 0
-        mask_off = event_img < 0
-        img_masked = img.copy()
-        img_masked[mask_on] = [255, 0, 0]   # 红色
-        img_masked[mask_off] = [0, 0, 255]  # 蓝色
+    # for i in range(25):
+    #     # img = rgb_save[i]
+    #     img = rgb_save[i]
+    #     event_i = event_frames[i]
+    #     event_img = np.zeros((140, 224), dtype=np.int8)
+    #     event_img = event_img + event_i[:, :, 0] - event_i[:, :, 1]
+    #     mask_on = event_img > 0
+    #     mask_off = event_img < 0
+    #     img_masked = img.copy()
+    #     img_masked[mask_on] = [255, 0, 0]   # 红色
+    #     img_masked[mask_off] = [0, 0, 255]  # 蓝色
         
-        fig, axs = plt.subplots(1, 3, figsize=(15, 5))
+    #     fig, axs = plt.subplots(1, 3, figsize=(15, 5))
 
-        axs[0].imshow(img)
-        axs[0].set_title('Original img')
-        axs[0].axis('off')
+    #     axs[0].imshow(img)
+    #     axs[0].set_title('Original img')
+    #     axs[0].axis('off')
 
-        axs[1].imshow(event_img, cmap='gray')
-        axs[1].set_title('Event img')
-        axs[1].axis('off')
+    #     axs[1].imshow(event_img, cmap='gray')
+    #     axs[1].set_title('Event img')
+    #     axs[1].axis('off')
 
-        axs[2].imshow(img_masked)
-        axs[2].set_title('Masked img')
-        axs[2].axis('off')
+    #     axs[2].imshow(img_masked)
+    #     axs[2].set_title('Masked img')
+    #     axs[2].axis('off')
 
-        plt.tight_layout()
-        plt.show()
+    #     plt.tight_layout()
+    #     plt.show()
 
     # start_idx += slice
     # end_idx += slice

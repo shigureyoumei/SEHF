@@ -24,8 +24,8 @@ def launch_tensorboard(logdir):
     return tensorboard_process
 
 if __name__ == '__main__':
-    logdir = '~/projects/SEHF/out_dir/2025_5_31_b2_lr0.0001'
-    # logdir = '~/projects/result'
+    # logdir = '~/projects/SEHF/out_dir/2025_5_31_b2_lr0.0001'
+    logdir = '~/projects/result/2025_5_31_b2_lr0.0001'
     tensorboard_process = launch_tensorboard(logdir)
     try:
         # 保持主线程运行，直到用户手动终止
