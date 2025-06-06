@@ -156,7 +156,7 @@ def main():
     lowest_test_loss = 1e10
     best_epoch = -1
     optimizer = torch.optim.Adam(SEHF.parameters(), lr=lr)
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=70, eta_min=1e-6)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=120, eta_min=1e-7)
     hybrid_loss = HybridLoss(lambda_mse=0.3, lambda_lpips=0.7)
 
     # whether to resume training
@@ -370,9 +370,9 @@ def main():
         }
 
         if save_best:
-            torch.save(checkpoint, os.path.join(out_dir, f'best{epoch}.pth'))
+            torch.save(checkpoint, os.path.join(out_dir, f'best.pth'))
 
-        torch.save(checkpoint, os.path.join(out_dir, f'last{epoch}.pth'))
+        torch.save(checkpoint, os.path.join(out_dir, f'last.pth'))
 
         print(f'epoch = {epoch}, train_loss ={train_loss: .4f}, test_loss ={test_loss: .4f}, epoch_span ={(test_time-starttime)//60}min{(test_time-starttime)%60}s, train_time ={(train_time-starttime)//60}min{(train_time-starttime)%60}s, lowest_test_loss ={lowest_test_loss: .4f}_epoch({best_epoch})')
         elapsed_time = time.time() - starttime
