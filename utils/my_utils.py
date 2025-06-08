@@ -275,6 +275,8 @@ def align_imgs_and_create_videos(path, fps):
                 if not os.path.exists(event_aligned_folder):
                     os.makedirs(event_aligned_folder)
                 for file in os.listdir(subfolder_path):
+                    if file.endswith('video'):
+                        continue
                     file_path = os.path.join(subfolder_path, file)
                     event_image = cv2.imread(file_path)
                     # event_correct = event_image[117:393,97:539].copy()  #baseline version
@@ -509,7 +511,7 @@ def save_h5(root, path, eh, ew, ox, oy, op, ot, trigger):
                         imgs = []
                         rgb_folder = os.path.join(root, dirnames)
                         rgb_files = [f for f in os.listdir(rgb_folder) if f.endswith(('.png', '.jpg', '.jpeg'))]
-                        rgb_files.sort(key=lambda x: int(x.split('_')[1]))
+                        rgb_files.sort(key=lambda x: int(x.split('_')[1].split('.')[0]))
                         for f in rgb_files:
                             img = cv2.imread(os.path.join(rgb_folder, f))
                             imgs.append(img)
