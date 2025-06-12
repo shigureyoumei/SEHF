@@ -112,14 +112,14 @@ def print_h5_contents(file_path):
 
 # 使用示例
 # file_path = '/mnt/e/Program/PROJECT/dataset/DATASETS/try6/try6.h5'
-file_path = '~/projects/dataset/try/try/try_try.h5'
+file_path = '~/projects/result/MIRU/originaldata/try_4.h5'
 file_path = os.path.expanduser(file_path)
 # file_path = '/mnt/d/ball_data_4_ver2/ball1_1_10.h5'
 
 
 print_h5_contents(file_path)
 
-save_path = '~/projects/dataset/try/test'
+save_path = '~/projects/result/MIRU/result/test4'
 save_path = os.path.expanduser(save_path)
 if not os.path.exists(save_path):
     os.makedirs(save_path)

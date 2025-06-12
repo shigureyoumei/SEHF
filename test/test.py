@@ -7,8 +7,8 @@ from model import framework
 import torch
 
 if __name__ == "__main__":
-    root = '~/projects/dataset/try/test'
-    pth = '~/projects/result/2025_5_31_b2_lr0.0001/last.pth'
+    root = '~/projects/result/MIRU/result'
+    pth = '~/projects/result/MIRU/best.pth'
     root = os.path.expanduser(root)
     pth = os.path.expanduser(pth)
 
@@ -34,7 +34,7 @@ if __name__ == "__main__":
     SEHF.eval()
 
     # Create output directory if it doesn't exist
-    output_dir = '~/projects/dataset/try/result'
+    output_dir = '~/projects/result/MIRU/output'
     output_dir = os.path.expanduser(output_dir)
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
