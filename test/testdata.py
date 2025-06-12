@@ -5,19 +5,32 @@ import matplotlib.pyplot as plt
 import numpy as np
 import cv2
 
-def render(x: np.ndarray, y: np.ndarray, pol: np.ndarray, H: int, W: int) -> np.ndarray:
-    assert x.size == y.size == pol.size
-    assert H > 0
-    assert W > 0
+
+def stack_event(t, x, y, p, w, h):
+    map = np.zeros((w, h), dtype=np.float32)
+    assert t.shape == x.shape == y.shape == p.shape
+    len = t.shape[0]
+    for i in range(len):
+        if p[i] > 0:
+            map[int(x[i]), int(y[i])] += p[i]
+        else:
+            map[int(x[i]), int(y[i])] -= 1
+
+    # Normalize map_on and map_off to the range 0-255
+    
+    map = np.transpose(map, (2, 1, 0))  # 转换为 (H, W, C)
+    map = np.fliplr(map)
+
+    return map
+
+def my_render(map, H: int, W: int) -> np.ndarray:
     img = np.full((H, W, 3), fill_value=255, dtype='uint8')
-    mask = np.zeros((H, W), dtype='uint8')
-    pol = pol.astype('int')
-    pol[pol == 0] = -1
-    mask1 = (x >= 0) & (y >= 0) & (W > x) & (H > y)
-    mask[y[mask1], x[mask1]] = pol[mask1]
-    img[mask == 0] = [255, 255, 255]
-    img[mask == -1] = [255, 0, 0]
-    img[mask == 1] = [0, 0, 255]
+    mask_on = map > 0
+    mask_off = map < 0
+    mask = map == 0
+    img[mask] = [255, 255, 255]
+    img[mask_on] = [255, 0, 0]
+    img[mask_off] = [0, 0, 255]
     img = cv2.flip(img, 1)  # Flip the image horizontally
     return img
 
@@ -217,7 +230,7 @@ for i in tqdm(range(num_groups), desc='Processing groups', total=num_groups):
     event_frames_show = []
     for t_, x_, y_, p_ in zip(t_save, x_save, y_save, p_save):
         event_frames.append(stack_data(t_, x_, y_, p_, 448, 280))
-        event_frames_show.append(render(x_, y_, p_, 280, 480))
+        event_frames_show.append(my_render(stack_event(t_, x_, y_, p_, 448, 280)))
     # event_frames_show = np.stack(event_frames_show, axis=0)
     event_frames = np.stack(event_frames, axis=0)
     event_frames_show = np.stack(event_frames_show, axis=0)
