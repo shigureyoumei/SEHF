@@ -1,14 +1,18 @@
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np
 import h5py
-import os
+# import os
 import cv2
 from tqdm import tqdm
 from model import framework
 import torch
+# from utils import checkh5file
 
 if __name__ == "__main__":
-    root = '~/projects/result/MIRU/result'
-    pth = '~/projects/result/MIRU/best.pth'
+    root = '~/projects/test/testtry3'
+    pth = '~/projects/result/6_6_lr/2025_6_4_b2_lr0.0001/best.pth'
     root = os.path.expanduser(root)
     pth = os.path.expanduser(pth)
 
@@ -20,7 +24,7 @@ if __name__ == "__main__":
                 file_list.append(os.path.join(root, file))
     print(f"Total files found: {len(file_list)}")
 
-    file_list.sort(key=lambda x: int(x.split('/')[-1].split('.')[0]))
+    file_list.sort(key=lambda x: int(x.split('/')[-1].split('.')[0].split('_')[-1]))
     print(f"Files sorted: {file_list}")
 
     device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
@@ -33,19 +37,31 @@ if __name__ == "__main__":
     SEHF.load_state_dict(checkpoint['SEHF'])
     SEHF.eval()
 
+    epoch = checkpoint['epoch']
+    print(f"Model loaded from {pth}, epoch: {epoch}")
+
     # Create output directory if it doesn't exist
-    output_dir = '~/projects/result/MIRU/output'
+    output_dir = '~/projects/test/testtry3_output'
     output_dir = os.path.expanduser(output_dir)
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
+    rgb_output_dir = os.path.join(output_dir, 'rgb')
+    event_output_dir = os.path.join(output_dir, 'event')
+    if not os.path.exists(rgb_output_dir):
+        os.makedirs(rgb_output_dir)
+    if not os.path.exists(event_output_dir):
+        os.makedirs(event_output_dir)
 
 
     idx = 1
     file_iter = 1
     for path in tqdm(file_list, desc="Processing files", total=len(file_list)):
+        
+        # checkh5file.print_h5_contents(path)
         with h5py.File(path, 'r') as f:
             rgb = f['rgb'][:]   # (4, 140, 224, 3)
             event = f['event'][:]   # (16, 140, 224, 2)
+            event_show = f['event_show'][:]   # (16, 140, 224, 2)
             rgb = np.astype(rgb, np.float32)
             event = np.astype(event, np.float32)
 
@@ -75,9 +91,11 @@ if __name__ == "__main__":
 
                 for i in range(output_np.shape[0]):
                     output_img = output_np[i].astype(np.uint8)
-                    output_path = os.path.join(output_dir, f"{file_iter}_{idx:03d}.png")
+                    rgb_output_path = os.path.join(rgb_output_dir, f"{file_iter}_{idx:03d}.png")
+                    event_output_path = os.path.join(event_output_dir, f"{file_iter}_{idx:03d}.png")
                     idx += 1
-                    cv2.imwrite(output_path, output_img)
+                    cv2.imwrite(rgb_output_path, output_img)
+                    cv2.imwrite(event_output_path, event_show[i].astype(np.uint8))
         file_iter += 1
 
 

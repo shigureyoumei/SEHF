@@ -5,19 +5,35 @@ import matplotlib.pyplot as plt
 import numpy as np
 import cv2
 
+def render(x: np.ndarray, y: np.ndarray, pol: np.ndarray, H: int, W: int) -> np.ndarray:
+    assert x.size == y.size == pol.size
+    assert H > 0
+    assert W > 0
+    img = np.full((H, W, 3), fill_value=255, dtype='uint8')
+    mask = np.zeros((H, W), dtype='uint8')
+    pol = pol.astype('int')
+    pol[pol == 0] = -1
+    mask1 = (x >= 0) & (y >= 0) & (W > x) & (H > y)
+    mask[y[mask1], x[mask1]] = pol[mask1]
+    img[mask == 0] = [255, 255, 255]
+    img[mask == -1] = [255, 0, 0]
+    img[mask == 1] = [0, 0, 255]
+    img = cv2.flip(img, 1)  # Flip the image horizontally
+    return img
+
 def downsample_img(img, target_h=140, target_w=224):
-    # img: (C, H, W)
-    w, h, c = img.shape
-    # cv2.resize 需要 (W, H) 顺序
-    # plt.imshow(img)
-    if h > w:
-        img = np.transpose(img, (2, 1, 0))
-    img_down = np.stack([
-        cv2.resize(img[i], (target_h, target_w), interpolation=cv2.INTER_AREA)
-        for i in range(c)
-    ], axis=0)
-    img_down = np.transpose(img_down, (2, 1, 0))  # 转换回 (H, W, C)
-    # plt.imshow(img_down)
+    # 支持 (C, H, W) 或 (H, W, C)
+    if img.ndim == 3 and img.shape[0] <= 4:  # (C, H, W)
+        c, h, w = img.shape
+        img_down = np.stack([
+            cv2.resize(img[i], (target_w, target_h), interpolation=cv2.INTER_AREA)
+            for i in range(c)
+        ], axis=0)
+        img_down = np.transpose(img_down, (1, 2, 0))  # (H, W, C)
+    elif img.ndim == 3 and img.shape[2] <= 4:  # (H, W, C)
+        img_down = cv2.resize(img, (target_w, target_h), interpolation=cv2.INTER_AREA)
+    else:
+        raise ValueError(f"Unsupported img shape: {img.shape}")
     return img_down
 
 def stack_data(t, x, y, p, w, h):
@@ -112,14 +128,14 @@ def print_h5_contents(file_path):
 
 # 使用示例
 # file_path = '/mnt/e/Program/PROJECT/dataset/DATASETS/try6/try6.h5'
-file_path = '~/projects/result/MIRU/originaldata/try_4.h5'
+file_path = '~/projects/test/testdata/try_3.h5'
 file_path = os.path.expanduser(file_path)
 # file_path = '/mnt/d/ball_data_4_ver2/ball1_1_10.h5'
 
 
 print_h5_contents(file_path)
 
-save_path = '~/projects/result/MIRU/result/test4'
+save_path = '~/projects/test/testtry3'
 save_path = os.path.expanduser(save_path)
 if not os.path.exists(save_path):
     os.makedirs(save_path)
@@ -198,24 +214,40 @@ for i in tqdm(range(num_groups), desc='Processing groups', total=num_groups):
     p_save = [np.array(p) for p in t_p[e_end_idx:e_next_idx]]
 
     event_frames = []
+    event_frames_show = []
     for t_, x_, y_, p_ in zip(t_save, x_save, y_save, p_save):
         event_frames.append(stack_data(t_, x_, y_, p_, 448, 280))
+        event_frames_show.append(render(x_, y_, p_, 280, 480))
+    # event_frames_show = np.stack(event_frames_show, axis=0)
     event_frames = np.stack(event_frames, axis=0)
+    event_frames_show = np.stack(event_frames_show, axis=0)
+
+    plt.figure(figsize=(10, 5))
+    plt.subplot(1, 2, 1)
+    plt.imshow(event_frames_show[0])
+    plt.title('Event Frames Show0')
+    plt.subplot(1, 2, 2)
+    plt.imshow(event_frames_show[10])
+    plt.title('Event Frames Show1')
+    plt.show()
 
     # 后续处理...
     rgb_save = []
     event_save = []
+    event_frames_save = []
     for i in range(4):
         rgb_save.append(downsample_img(rgb_frame[i], target_h=140, target_w=224))
         for j in range(4):
             # print(f"current: {i*4+j}")
             event_save.append(downsample_img(event_frames[i*4+j], target_h=140, target_w=224))
+            event_frames_save.append(downsample_img(event_frames_show[i*4+j], target_h=140, target_w=224))
     rgb_save = np.stack(rgb_save, axis=0)
     event_frames = np.stack(event_save, axis=0)
-
+    event_frames_save = np.stack(event_frames_save, axis=0)
     with h5py.File(file_path, 'w') as f:
         f.create_dataset('rgb', data=rgb_save, compression='gzip')
         f.create_dataset('event', data=event_frames, compression='gzip')
+        f.create_dataset('event_show', data=event_frames_save, compression='gzip')
     
     file_idx += 1
 

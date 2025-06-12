@@ -95,7 +95,9 @@ def print_h5_contents(file_path):
 
 # 使用示例
 # file_path = '/mnt/e/Program/PROJECT/dataset/DATASETS/try6/try6.h5'
-file_path = '/mnt/d/Storage/try/Storage_try.h5'
+# file_path = '/mnt/d/Storage/try/Storage_try.h5'
+file_path = '~/projects/result/gakai/test/try_2.h5'
+file_path = os.path.expanduser(file_path)
 # file_path = '/mnt/d/ball_data_4_ver2/ball1_1_10.h5'
 
 
